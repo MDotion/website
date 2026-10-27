@@ -1,0 +1,25 @@
+---
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Hero from '../components/Hero.astro';
+import Diff from '../components/Diff.astro';
+import Features from '../components/Features.astro';
+import Install from '../components/Install.astro';
+import Faq from '../components/Faq.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<Base
+  title="MDotion — Visual Markdown editor for VS Code and Cursor"
+  description="Edit Markdown like a page in VS Code and Cursor: slash menu, drag-and-drop blocks, callouts, tables and code. Files stay plain .md, untouched blocks are saved byte for byte."
+>
+  <Header />
+  <main>
+    <Hero />
+    <Diff />
+    <Features />
+    <Install />
+    <Faq />
+  </main>
+  <Footer />
+</Base>

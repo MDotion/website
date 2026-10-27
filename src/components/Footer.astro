@@ -1,0 +1,78 @@
+---
+import Logo from './Logo.astro';
+import { links } from '../links';
+
+const nav = [
+  { href: links.github, label: 'GitHub' },
+  { href: links.changelog, label: 'Changelog' },
+  { href: links.issues, label: 'Report an issue' },
+  { href: links.license, label: 'MIT License' },
+];
+---
+
+<footer class="footer">
+  <div class="container inner">
+    <span class="logo"><Logo height={24} /></span>
+    <nav aria-label="Footer">
+      {nav.map((item) => <a href={item.href}>{item.label}</a>)}
+    </nav>
+    <p class="note">
+      MDotion is an independent project, not affiliated with or endorsed by Notion Labs, Inc.
+    </p>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    margin-top: clamp(72px, 10vw, 128px);
+    padding-block: 40px 56px;
+    border-top: 1px solid var(--hairline);
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .inner {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .logo {
+    color: var(--ink);
+  }
+
+  nav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px 20px;
+  }
+
+  nav a {
+    text-decoration: none;
+    transition: color 150ms ease;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    nav a:hover {
+      color: var(--ink);
+    }
+  }
+
+  .note {
+    grid-column: 1 / -1;
+    font-size: 0.8125rem;
+    color: var(--text-tertiary);
+  }
+
+  @media (max-width: 640px) {
+    .inner {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    nav {
+      justify-content: flex-start;
+    }
+  }
+</style>

@@ -1,0 +1,241 @@
+/* Page tokens use the brand ink (#0F1419). The editor mock in the hero uses
+   the product's own warm palette instead, so it looks like the real editor. */
+:root {
+  color-scheme: light dark;
+  interpolate-size: allow-keywords;
+
+  --bg: #ffffff;
+  --bg-subtle: #f7f7f5;
+  --ink: #0f1419;
+  --text: rgba(15, 20, 25, 0.9);
+  --text-secondary: rgba(15, 20, 25, 0.62);
+  --text-tertiary: rgba(15, 20, 25, 0.42);
+  --hairline: rgba(15, 20, 25, 0.08);
+  --hover: rgba(15, 20, 25, 0.05);
+  --logo-cutout: #ffffff;
+
+  --button-bg: #0f1419;
+  --button-text: #ffffff;
+
+  --surface-shadow: 0 0 0 1px rgba(15, 20, 25, 0.06), 0 1px 2px rgba(15, 20, 25, 0.04),
+    0 12px 32px -12px rgba(15, 20, 25, 0.16);
+  --surface-shadow-lg: 0 0 0 1px rgba(15, 20, 25, 0.06), 0 2px 4px rgba(15, 20, 25, 0.04),
+    0 32px 64px -24px rgba(15, 20, 25, 0.24);
+
+  --diff-add-bg: rgba(46, 160, 67, 0.12);
+  --diff-add-text: #1a7f37;
+  --diff-del-bg: rgba(248, 81, 73, 0.1);
+  --diff-del-text: #cf222e;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Display', 'Segoe UI',
+    Helvetica, 'Apple Color Emoji', Arial, sans-serif, 'Segoe UI Emoji', 'Segoe UI Symbol';
+  --font-code: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  --gutter: 24px;
+  --container: 1080px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1419;
+    --bg-subtle: #151b21;
+    --ink: #ffffff;
+    --text: rgba(255, 255, 255, 0.88);
+    --text-secondary: rgba(255, 255, 255, 0.58);
+    --text-tertiary: rgba(255, 255, 255, 0.38);
+    --hairline: rgba(255, 255, 255, 0.08);
+    --hover: rgba(255, 255, 255, 0.06);
+    --logo-cutout: #0f1419;
+
+    --button-bg: #ffffff;
+    --button-text: #0f1419;
+
+    --surface-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.3),
+      0 12px 32px -12px rgba(0, 0, 0, 0.5);
+    --surface-shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 4px rgba(0, 0, 0, 0.3),
+      0 32px 64px -24px rgba(0, 0, 0, 0.7);
+
+    --diff-add-bg: rgba(46, 160, 67, 0.16);
+    --diff-add-text: #56d364;
+    --diff-del-bg: rgba(248, 81, 73, 0.14);
+    --diff-del-text: #ff7b72;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --gutter: 16px;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Keep anchored sections clear of the sticky header. */
+[id] {
+  scroll-margin-top: 80px;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 100%/1.55 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+a {
+  color: inherit;
+}
+
+code,
+kbd {
+  font-family: var(--font-code);
+  font-size: 0.875em;
+}
+
+::selection {
+  background: rgba(35, 131, 226, 0.28);
+}
+
+:focus-visible {
+  outline: 2px solid #2383e2;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.container {
+  width: 100%;
+  max-width: calc(var(--container) + var(--gutter) * 2);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Type: tracking tightens as size grows, leading loosens as size shrinks. */
+.display {
+  font-size: clamp(2.5rem, 1.6rem + 4vw, 4.25rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 700;
+}
+
+.section-title {
+  font-size: clamp(1.75rem, 1.35rem + 1.6vw, 2.5rem);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+}
+
+.lead {
+  font-size: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);
+  line-height: 1.5;
+  letter-spacing: -0.006em;
+  color: var(--text-secondary);
+}
+
+.eyebrow {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.section {
+  padding-block: clamp(56px, 7vw, 96px);
+}
+
+/* Buttons */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding-inline: 18px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.006em;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    transform 160ms var(--ease-out),
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.button:active {
+  transform: scale(0.97);
+}
+
+.button-primary {
+  background: var(--button-bg);
+  color: var(--button-text);
+}
+
+.button-secondary {
+  background: var(--bg);
+  color: var(--ink);
+  box-shadow: var(--surface-shadow);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .button-primary:hover {
+    background: color-mix(in srgb, var(--button-bg) 86%, var(--bg));
+  }
+
+  .button-secondary:hover {
+    background: var(--bg-subtle);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button:active {
+    transform: none;
+  }
+}

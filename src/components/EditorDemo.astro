@@ -1,0 +1,587 @@
+---
+// A faithful, live mock of the MDotion editor: the same document as a page and
+// as the Markdown on disk. Ticking a to-do rewrites its source line.
+
+type Todo = { line: number; text: string; done: boolean };
+
+const todos: Todo[] = [
+  { line: 15, text: 'Freeze the feature list', done: true },
+  { line: 16, text: 'Update the changelog', done: true },
+  { line: 17, text: 'Record the demo video', done: false },
+];
+
+// Source lines as [markup] fragments: `m` = Markdown syntax, `k` = YAML key,
+// `s` = strong text, `h` = heading text, plain strings = body text.
+type Frag = string | { m: string } | { k: string } | { s: string } | { h: string } | { c: string };
+const source: Frag[][] = [
+  [{ m: '---' }],
+  [{ k: 'status:' }, ' In progress'],
+  [{ k: 'owner:' }, ' Docs team'],
+  [{ m: '---' }],
+  [],
+  [{ m: '# ' }, { h: 'Release checklist' }],
+  [],
+  ['Everything you need to ship ', { m: '**' }, { s: 'v1.0' }, { m: '**' }, ', written in plain Markdown.'],
+  [],
+  [{ m: '> [!TIP]' }],
+  [{ m: '> ' }, 'Type ', { m: '`' }, { c: '/' }, { m: '`' }, ' anywhere to add a block.'],
+  [],
+  [{ m: '## ' }, { h: 'Before the release' }],
+  [],
+  ...todos.map((t): Frag[] => [{ m: '- ' }, { m: t.done ? '[x]' : '[ ]' }, ' ' + t.text]),
+];
+
+// Built as one string: inside <pre>, template indentation would become visible text.
+const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const fragHtml = (f: Frag) => {
+  if (typeof f === 'string') return escape(f);
+  const [[cls, text]] = Object.entries(f);
+  return `<span class="${cls}">${escape(text)}</span>`;
+};
+const sourceHtml = source
+  .map(
+    (line, i) =>
+      `<span class="line" data-line="${i + 1}"><span class="ln" aria-hidden="true">${i + 1}</span>` +
+      `<span class="lc">${line.map(fragHtml).join('')}</span></span>`,
+  )
+  .join('');
+---
+
+<figure class="demo">
+  <div class="window" data-view="visual">
+    <div class="toolbar">
+      <div class="file">
+        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 1.5h5.2L13 5.3V14a.5.5 0 0 1-.5.5h-8.5A.5.5 0 0 1 3.5 14V2a.5.5 0 0 1 .5-.5Z" fill="currentColor" opacity=".55" />
+          <path d="M9 1.5V5a.5.5 0 0 0 .5.5H13" fill="none" stroke="currentColor" opacity=".9" />
+        </svg>
+        <span>release.md</span>
+        <span class="dirty" aria-label="unsaved changes" hidden>●</span>
+      </div>
+
+      <div class="seg" role="group" aria-label="Editor view">
+        <button type="button" data-view="visual" aria-pressed="true">Visual</button>
+        <button type="button" data-view="markdown" aria-pressed="false">Markdown</button>
+        <div class="seg-active" aria-hidden="true">
+          <span>Visual</span><span>Markdown</span>
+        </div>
+      </div>
+
+      <div class="tools" aria-hidden="true">
+        <span class="tool">
+          <svg width="14" height="14" viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3" /><path d="M11 3.5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h.5" fill="none" stroke="currentColor" stroke-width="1.3" /></svg>
+          Copy
+        </span>
+        <span class="tool">
+          <svg width="14" height="14" viewBox="0 0 16 16"><path d="M13.5 9.8A6 6 0 0 1 6.2 2.5a6 6 0 1 0 7.3 7.3Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" /></svg>
+        </span>
+        <span class="tool">···</span>
+      </div>
+    </div>
+
+    <div class="views">
+      <div class="view view-visual" data-for="visual">
+        <div class="page">
+          <dl class="props">
+            <div><dt>status</dt><dd>In progress</dd></div>
+            <div><dt>owner</dt><dd>Docs team</dd></div>
+          </dl>
+          <h3 class="page-title">Release checklist</h3>
+          <p>Everything you need to ship <strong>v1.0</strong>, written in plain Markdown.</p>
+          <div class="callout">
+            <span aria-hidden="true">💡</span>
+            <p>Type <code>/</code> anywhere to add a block.</p>
+          </div>
+          <h4 class="page-h2">Before the release</h4>
+          <ul class="todos">
+            {
+              todos.map((t) => (
+                <li>
+                  <label>
+                    <input type="checkbox" checked={t.done} data-line={t.line} />
+                    <span>{t.text}</span>
+                  </label>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+
+      <div class="view view-source" data-for="markdown" inert>
+        <pre><code set:html={sourceHtml} /></pre>
+      </div>
+    </div>
+  </div>
+  <figcaption>The same file, two views. Tick a to-do, then switch to Markdown.</figcaption>
+</figure>
+
+<style>
+  .demo {
+    margin: 0;
+  }
+
+  /* Product palette, copied from the editor's own stylesheet. */
+  .window {
+    --e-bg: #ffffff;
+    --e-text: rgb(55, 53, 47);
+    --e-text-2: rgba(55, 53, 47, 0.65);
+    --e-text-3: rgba(55, 53, 47, 0.45);
+    --e-divider: rgba(55, 53, 47, 0.09);
+    --e-hover: rgba(55, 53, 47, 0.08);
+    --e-accent: #2383e2;
+    --e-code-bg: rgb(247, 246, 243);
+    --e-inline-code: #eb5757;
+    --e-inline-code-bg: rgba(135, 131, 120, 0.15);
+    --e-callout: rgb(237, 243, 236);
+    --e-gutter-modified: #2090d3;
+    --e-tile: #ffffff;
+
+    position: relative;
+    overflow: hidden;
+    border-radius: 14px;
+    background: var(--e-bg);
+    color: var(--e-text);
+    box-shadow: var(--surface-shadow-lg);
+    text-align: left;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .window {
+      --e-bg: #191919;
+      --e-text: rgba(255, 255, 255, 0.81);
+      --e-text-2: rgba(255, 255, 255, 0.46);
+      --e-text-3: rgba(255, 255, 255, 0.282);
+      --e-divider: rgba(255, 255, 255, 0.094);
+      --e-hover: rgba(255, 255, 255, 0.055);
+      --e-code-bg: rgb(32, 32, 32);
+      --e-inline-code: #ff7369;
+      --e-callout: rgb(36, 61, 48);
+      --e-gutter-modified: #1b81a8;
+      --e-tile: #2f2f2f;
+    }
+  }
+
+  /* Toolbar */
+  .toolbar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+    height: 48px;
+    padding-inline: 16px;
+    font-size: 0.875rem;
+  }
+
+  .file {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--e-text);
+  }
+
+  .file svg {
+    flex: none;
+    color: var(--e-text-2);
+  }
+
+  .dirty {
+    font-size: 0.625rem;
+    color: var(--e-text-2);
+  }
+
+  .tools {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 14px;
+    color: var(--e-text-2);
+  }
+
+  .tool {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  /* Segmented control. The active style lives on a duplicate row that is
+     clipped down to the selected button, so the colour change slides with
+     the pill instead of cross-fading two buttons. */
+  .seg {
+    position: relative;
+    display: flex;
+    padding: 2px;
+    border-radius: 8px;
+    background: var(--e-hover);
+  }
+
+  .seg button,
+  .seg-active span {
+    padding: 3px 10px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    font: inherit;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--e-text-2);
+    white-space: nowrap;
+  }
+
+  .seg button {
+    cursor: pointer;
+  }
+
+  .seg button:active {
+    transform: scale(0.97);
+  }
+
+  .seg-active {
+    position: absolute;
+    inset: 2px;
+    display: flex;
+    pointer-events: none;
+    opacity: 0;
+    clip-path: inset(0 var(--clip-right, 50%) 0 var(--clip-left, 0) round 6px);
+    transition: clip-path 240ms var(--ease-in-out);
+  }
+
+  .seg-active span {
+    background: var(--e-tile);
+    color: var(--e-text);
+    box-shadow: inset 0 0 0 1px var(--e-divider);
+  }
+
+  .seg[data-ready] .seg-active {
+    opacity: 1;
+  }
+
+  /* Before the script measures the buttons, style the pressed one directly. */
+  .seg:not([data-ready]) button[aria-pressed='true'] {
+    background: var(--e-tile);
+    color: var(--e-text);
+    box-shadow: inset 0 0 0 1px var(--e-divider);
+  }
+
+  /* Views: both share one grid cell so switching never changes the height. */
+  .views {
+    display: grid;
+  }
+
+  .view {
+    grid-area: 1 / 1;
+    transition:
+      opacity 200ms var(--ease-out),
+      filter 200ms var(--ease-out),
+      visibility 0s linear 0s;
+  }
+
+  .view[inert] {
+    opacity: 0;
+    filter: blur(4px);
+    visibility: hidden;
+    transition:
+      opacity 200ms var(--ease-out),
+      filter 200ms var(--ease-out),
+      visibility 0s linear 200ms;
+  }
+
+  /* Rendered page */
+  .page {
+    max-width: 560px;
+    margin-inline: auto;
+    padding: 24px 32px 40px;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .props {
+    display: grid;
+    gap: 2px;
+    margin: 0 0 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--e-divider);
+    font-size: 0.875rem;
+  }
+
+  .props div {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    padding-block: 4px;
+  }
+
+  .props dt {
+    color: var(--e-text-2);
+  }
+
+  .props dt::before {
+    content: '≡';
+    margin-right: 8px;
+    color: var(--e-text-3);
+  }
+
+  .props dd {
+    margin: 0;
+  }
+
+  .page-title {
+    margin: 4px 0 10px;
+    font-size: 2.25rem;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+    color: inherit;
+  }
+
+  .page p {
+    margin: 0;
+  }
+
+  .callout {
+    display: flex;
+    gap: 10px;
+    margin: 10px 0 0;
+    padding: 14px 16px;
+    border-radius: 4px;
+    background: var(--e-callout);
+  }
+
+  .page code {
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--e-inline-code-bg);
+    color: var(--e-inline-code);
+    font-size: 0.85em;
+  }
+
+  .page-h2 {
+    margin: 24px 0 4px;
+    font-size: 1.5rem;
+    line-height: 1.3;
+    font-weight: 700;
+    color: inherit;
+  }
+
+  .todos {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .todos label {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding-block: 3px;
+    cursor: pointer;
+  }
+
+  .todos input {
+    flex: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1.5px var(--e-text-2);
+    cursor: pointer;
+    transition:
+      background-color 120ms ease,
+      box-shadow 120ms ease;
+  }
+
+  .todos input:checked {
+    background: var(--e-accent)
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.2 6.8 11 12 5.2' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      center / 14px no-repeat;
+    box-shadow: none;
+  }
+
+  .todos input:checked + span {
+    color: var(--e-text-3);
+    text-decoration: line-through;
+  }
+
+  .todos input:active {
+    transform: scale(0.9);
+  }
+
+  /* Markdown source */
+  .view-source pre {
+    margin: 0;
+    padding: 24px 24px 40px 8px;
+    font-family: var(--font-code);
+    font-size: 0.8125rem;
+    line-height: 1.75;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .view-source code {
+    display: grid;
+    font-size: inherit;
+  }
+
+  .view-source :global(.line) {
+    position: relative;
+    display: flex;
+  }
+
+  .view-source :global(.ln) {
+    flex: none;
+    width: 40px;
+    padding-right: 16px;
+    text-align: right;
+    color: var(--e-text-3);
+    user-select: none;
+  }
+
+  /* VS Code's gutter marker for a modified line. */
+  .view-source :global(.line)::before {
+    content: '';
+    position: absolute;
+    left: 42px;
+    top: 2px;
+    bottom: 2px;
+    width: 3px;
+    background: var(--e-gutter-modified);
+    opacity: 0;
+    transition: opacity 150ms ease;
+  }
+
+  .view-source :global(.line[data-modified])::before {
+    opacity: 1;
+  }
+
+  .view-source :global(.lc) {
+    min-width: 0;
+    padding-left: 8px;
+  }
+
+  .view-source :global(.m) {
+    color: var(--e-text-3);
+  }
+
+  .view-source :global(.k) {
+    color: var(--e-text-2);
+  }
+
+  .view-source :global(.s),
+  .view-source :global(.h) {
+    font-weight: 700;
+  }
+
+  .view-source :global(.c) {
+    color: var(--e-inline-code);
+  }
+
+  figcaption {
+    margin-top: 16px;
+    text-wrap: balance;
+    font-size: 0.875rem;
+    color: var(--text-tertiary);
+    text-align: center;
+  }
+
+  @media (max-width: 640px) {
+    .toolbar {
+      grid-template-columns: 1fr auto;
+      padding-inline: 12px;
+    }
+
+    .tools {
+      display: none;
+    }
+
+    .page {
+      padding: 16px 20px 28px;
+    }
+
+    .props div {
+      grid-template-columns: 110px 1fr;
+    }
+
+    .page-title {
+      font-size: 1.875rem;
+    }
+
+    .view-source pre {
+      padding: 16px 12px 28px 0;
+      font-size: 0.75rem;
+    }
+
+    .view-source :global(.ln) {
+      width: 32px;
+      padding-right: 10px;
+    }
+
+    .view-source :global(.line)::before {
+      left: 33px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .view,
+    .view[inert] {
+      filter: none;
+    }
+
+    .seg-active {
+      transition: none;
+    }
+
+    .seg button:active,
+    .todos input:active {
+      transform: none;
+    }
+  }
+</style>
+
+<script>
+  for (const demo of document.querySelectorAll<HTMLElement>('.demo')) {
+    const seg = demo.querySelector<HTMLElement>('.seg')!;
+    const active = seg.querySelector<HTMLElement>('.seg-active')!;
+    const buttons = [...seg.querySelectorAll<HTMLButtonElement>('button')];
+    const views = [...demo.querySelectorAll<HTMLElement>('.view')];
+    const dirty = demo.querySelector<HTMLElement>('.dirty')!;
+
+    const clipTo = (button: HTMLButtonElement) => {
+      const left = button.offsetLeft - active.offsetLeft;
+      const right = active.offsetWidth - left - button.offsetWidth;
+      active.style.setProperty('--clip-left', `${left}px`);
+      active.style.setProperty('--clip-right', `${right}px`);
+    };
+
+    const show = (view: string) => {
+      for (const b of buttons) {
+        const on = b.dataset.view === view;
+        b.setAttribute('aria-pressed', String(on));
+        if (on) clipTo(b);
+      }
+      for (const v of views) v.inert = v.dataset.for !== view;
+    };
+
+    for (const b of buttons) b.addEventListener('click', () => show(b.dataset.view!));
+
+    // Measure once fonts are in, then reveal the sliding pill without animating it into place.
+    document.fonts.ready.then(() => {
+      active.style.transition = 'none';
+      clipTo(buttons.find((b) => b.getAttribute('aria-pressed') === 'true')!);
+      seg.dataset.ready = '';
+      active.getBoundingClientRect();
+      active.style.transition = '';
+    });
+
+    for (const box of demo.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
+      const line = demo.querySelector<HTMLElement>(`.line[data-line="${box.dataset.line}"]`)!;
+      const marker = line.querySelectorAll<HTMLElement>('.m')[1];
+      const original = box.checked;
+      box.addEventListener('change', () => {
+        marker.textContent = box.checked ? '[x]' : '[ ]';
+        line.toggleAttribute('data-modified', box.checked !== original);
+        dirty.hidden = !demo.querySelector('.line[data-modified]');
+      });
+    }
+  }
+</script>

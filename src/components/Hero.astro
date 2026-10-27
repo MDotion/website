@@ -1,0 +1,120 @@
+---
+import EditorDemo from './EditorDemo.astro';
+import { links } from '../links';
+---
+
+<section class="hero">
+  <div class="container">
+    <div class="intro">
+      <p class="eyebrow enter">For VS Code, Cursor and VSCodium</p>
+      <h1 class="display enter">Markdown, edited like&nbsp;a&nbsp;page.</h1>
+      <p class="lead enter">
+        MDotion is a block editor for <code>.md</code> files. Slash menu, drag-and-drop blocks, callouts and tables, while
+        the file on disk stays plain Markdown.
+      </p>
+      <div class="actions enter">
+        <a class="button button-primary" href={links.marketplace}>Install for VS Code</a>
+        <a class="button button-secondary" href={links.openVsx}>Get it on Open VSX</a>
+      </div>
+      <p class="meta enter">Free and open source · No account · No telemetry</p>
+    </div>
+
+    <div class="stage enter">
+      <EditorDemo />
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero {
+    padding-top: clamp(48px, 8vw, 104px);
+  }
+
+  .intro {
+    max-width: 720px;
+    margin-inline: auto;
+    text-align: center;
+  }
+
+  .display {
+    margin-top: 14px;
+  }
+
+  .lead {
+    max-width: 560px;
+    text-wrap: balance;
+    margin: 20px auto 0;
+  }
+
+  .lead code {
+    font-size: 0.9em;
+    color: var(--ink);
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 32px;
+  }
+
+  .meta {
+    margin-top: 16px;
+    font-size: 0.8125rem;
+    color: var(--text-tertiary);
+  }
+
+  .stage {
+    max-width: 880px;
+    margin: clamp(48px, 7vw, 80px) auto 0;
+  }
+
+  /* First load only: a short cascade, run as a CSS animation so it stays
+     smooth while the page is still loading. */
+  .enter {
+    animation: enter 600ms var(--ease-out) both;
+  }
+
+  .enter:nth-child(2) {
+    animation-delay: 50ms;
+  }
+  .enter:nth-child(3) {
+    animation-delay: 100ms;
+  }
+  .enter:nth-child(4) {
+    animation-delay: 150ms;
+  }
+  .enter:nth-child(5) {
+    animation-delay: 200ms;
+  }
+  .stage.enter {
+    animation-delay: 260ms;
+  }
+
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .enter {
+      animation-name: fade;
+      animation-duration: 300ms;
+    }
+
+    @keyframes fade {
+      from {
+        opacity: 0;
+      }
+    }
+  }
+
+  @media (max-width: 640px) {
+    .actions .button {
+      flex: 1 1 100%;
+    }
+  }
+</style>

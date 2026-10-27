@@ -1,0 +1,145 @@
+---
+// Each feature is marked with the Markdown or keystroke it stands for,
+// instead of a decorative icon.
+const features = [
+  {
+    mark: '/',
+    title: 'Slash menu',
+    body: 'Headings, lists, to-dos, quotes, callouts, code, tables and images. Searchable, and fully keyboard driven.',
+  },
+  {
+    mark: 'handle',
+    title: 'Blocks you can move',
+    body: 'Drag a block by its handle, or select several and move, duplicate or turn them into something else at once.',
+  },
+  {
+    mark: '> [!TIP]',
+    title: 'Callouts that work on GitHub',
+    body: 'Note, tip, important, warning and caution are stored as GitHub alerts, so they render there too.',
+  },
+  {
+    mark: '---',
+    title: 'Front matter as properties',
+    body: 'YAML front matter appears as page properties above the title, and is still edited as YAML.',
+  },
+  {
+    mark: '# ',
+    title: 'Markdown shortcuts',
+    body: 'Type # , - , [] or > and the block appears. ⌘B, ⌘I, ⌘K and the rest work as you expect.',
+  },
+  {
+    mark: '```ts',
+    title: 'Code and tables',
+    body: 'Code blocks with a language picker, highlighting and a copy button. Tables with row and column controls.',
+  },
+  {
+    mark: '⌘⌥M',
+    title: 'Source is one shortcut away',
+    body: 'Switch between Visual and Markdown in the same tab. Copy the whole file as Markdown with one command.',
+  },
+  {
+    mark: '.md',
+    title: 'Real files, live',
+    body: 'Edits go through VS Code, so dirty state and Git behave normally. Changes from outside show up as you type.',
+  },
+];
+---
+
+<section class="section" id="features">
+  <div class="container">
+    <div class="head">
+      <p class="eyebrow">Features</p>
+      <h2 class="section-title">Everything a page needs. Nothing your files don't.</h2>
+    </div>
+
+    <dl class="list">
+      {
+        features.map((f) => (
+          <div class="item">
+            <dt>
+              <span class="mark" aria-hidden="true">
+                {f.mark === 'handle' ? (
+                  <svg width="10" height="14" viewBox="0 0 10 14">
+                    {[2, 7, 12].map((y) => [2, 8].map((x) => <circle cx={x} cy={y} r="1.4" fill="currentColor" />))}
+                  </svg>
+                ) : (
+                  f.mark
+                )}
+              </span>
+              {f.title}
+            </dt>
+            <dd>{f.body}</dd>
+          </div>
+        ))
+      }
+    </dl>
+  </div>
+</section>
+
+<style>
+  .head {
+    max-width: 560px;
+  }
+
+  .head .section-title {
+    margin-top: 12px;
+  }
+
+  .list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: clamp(32px, 6vw, 80px);
+    margin: clamp(40px, 6vw, 64px) 0 0;
+  }
+
+  .item {
+    padding-block: 22px;
+    border-top: 1px solid var(--hairline);
+  }
+
+  dt {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 1.0625rem;
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .mark {
+    flex: none;
+    min-width: 64px;
+    font-family: var(--font-code);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--text-tertiary);
+    white-space: pre;
+  }
+
+  dd {
+    margin: 6px 0 0 76px;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+  }
+
+  @media (max-width: 760px) {
+    .list {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 420px) {
+    dt {
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    dd {
+      margin-left: 0;
+    }
+  }
+</style>

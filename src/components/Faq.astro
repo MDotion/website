@@ -1,0 +1,161 @@
+---
+import { links } from '../links';
+
+const questions = [
+  {
+    q: 'Does MDotion change my files?',
+    a: 'Only the blocks you edit. Everything else is written back byte for byte, so formatting, spacing and line endings you did not touch stay exactly as they were.',
+  },
+  {
+    q: 'What happens to Markdown the editor can’t show?',
+    a: 'HTML, reference definitions, badges and anything else the editor cannot represent are kept verbatim as source blocks, with a sanitised preview. Nothing is dropped.',
+  },
+  {
+    q: 'Which Markdown does it support?',
+    a: 'CommonMark and GitHub Flavored Markdown (tables, task lists, strikethrough, autolinks) plus GitHub alerts are editable visually. Everything else is preserved.',
+  },
+  {
+    q: 'Do I need an account? Does it send anything anywhere?',
+    a: 'No account. MDotion runs entirely inside your editor, collects no telemetry, makes no network requests of its own and never uploads your files.',
+  },
+  {
+    q: 'Will it replace the default Markdown editor?',
+    a: 'Only if you say so. The first time you open a Markdown file it asks, and you can change your mind at any time from the command palette.',
+  },
+  {
+    q: 'Is MDotion affiliated with Notion?',
+    a: 'No. MDotion is an independent open-source project. “Notion-style” only describes the editing experience.',
+  },
+];
+---
+
+<section class="section" id="faq">
+  <div class="container grid">
+    <div class="head">
+      <h2 class="section-title">Questions</h2>
+      <p class="lead">
+        Something else? <a href={links.issues}>Open an issue</a> on GitHub.
+      </p>
+    </div>
+
+    <div class="list">
+      {
+        questions.map((item) => (
+          <details>
+            <summary>
+              {item.q}
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  d="M4 6l4 4 4-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </summary>
+            <p>{item.a}</p>
+          </details>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+    gap: clamp(32px, 6vw, 80px);
+  }
+
+  .head .lead {
+    margin-top: 12px;
+  }
+
+  .head a {
+    color: var(--ink);
+    text-decoration-color: var(--text-tertiary);
+    text-underline-offset: 3px;
+  }
+
+  details {
+    border-top: 1px solid var(--hairline);
+  }
+
+  details:last-child {
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-block: 18px;
+    font-size: 1.0625rem;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
+  }
+
+  summary svg {
+    flex: none;
+    color: var(--text-tertiary);
+    transition: transform 200ms var(--ease-in-out);
+  }
+
+  details[open] summary svg {
+    transform: rotate(180deg);
+  }
+
+  details p {
+    max-width: 600px;
+    padding-bottom: 20px;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+
+  /* Height is the one property with no transform equivalent for an accordion.
+     Browsers without ::details-content simply open instantly. */
+  details::details-content {
+    block-size: 0;
+    overflow: clip;
+    opacity: 0;
+    transition:
+      block-size 240ms var(--ease-out),
+      opacity 200ms ease,
+      content-visibility 240ms allow-discrete;
+  }
+
+  details[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+  }
+
+  @media (max-width: 760px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    details::details-content {
+      transition:
+        opacity 200ms ease,
+        content-visibility 200ms allow-discrete;
+    }
+
+    summary svg {
+      transition: none;
+    }
+  }
+</style>
