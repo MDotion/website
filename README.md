@@ -27,7 +27,7 @@ npm run preview
 | `public/` | Favicons, Open Graph image, robots.txt |
 | `scripts/og.html` | Source of `public/og.png` |
 
-The editor mock uses the product's own palette (copied from `webview/src/styles/notion.css` in the extension repo); the rest of the page uses the brand ink `#0F1419`. Brand assets come from `assets/` in the extension repo.
+The editor mock uses the product's own palette (copied from `webview/src/styles/notion.css` in the extension repo); the rest of the page uses the brand ink `#0F1419`. The logo, favicons and icons are exports of the brand sources, which are kept outside the repositories.
 
 ### Motion
 
