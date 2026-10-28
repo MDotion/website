@@ -1,43 +1,46 @@
 ---
-// Scripted demos of what MDotion does, played in the same editor mock as the
-// hero. Each scene is driven by `data-step` (the script advances it on a
-// timeline); everything visual is CSS transitions on transform / opacity.
+// Scripted demos of what MDotion does: the visual editor on the left, the
+// Markdown file on the right, both changing as the scene plays. Each scene is
+// driven by data attributes the script sets on a timeline; everything visual
+// is CSS transitions on transform / opacity.
+
+type Line = { text: string; id?: string; hidden?: boolean };
 
 const scenes = [
   {
     id: 'paste',
     file: 'roadmap.md',
     title: 'Paste a spreadsheet',
-    body: 'Copy a range in Excel or Google Sheets, paste it, get a clean GFM table.',
-    duration: 7600,
+    body: 'Copy a range in Excel or Google Sheets and paste it: you get a clean GFM table, numbers still aligned.',
+    duration: 7000,
   },
   {
     id: 'table',
     file: 'roadmap.md',
-    title: 'Edit tables without the pipes',
-    body: 'Add rows, Tab between cells, drag columns. The Markdown stays lined up.',
-    duration: 8600,
+    title: 'Edit tables',
+    body: 'Add rows, Tab between cells, drag columns. No pipes to count, and the Markdown stays lined up.',
+    duration: 8800,
   },
   {
     id: 'outline',
     file: 'architecture.md',
-    title: 'Rearrange with the outline',
-    body: 'Drag a heading and its whole section moves. In Git, lines just change place.',
-    duration: 7600,
+    title: 'Move sections',
+    body: 'Drag a heading in the outline and its whole section moves. In Git, the lines just change place.',
+    duration: 7000,
   },
   {
     id: 'slash',
     file: 'release-notes.md',
-    title: 'Type / for any block',
-    body: 'Callouts, to-dos, tables and code, saved as Markdown GitHub renders.',
-    duration: 7200,
+    title: 'Type /',
+    body: 'Callouts, to-dos, tables and code from the slash menu, saved as Markdown GitHub renders.',
+    duration: 7000,
   },
   {
     id: 'diff',
     file: 'release.md',
-    title: 'One edit, one line in the diff',
-    body: 'Only the blocks you touch are rewritten. Everything else is saved byte for byte.',
-    duration: 6600,
+    title: 'Clean diffs',
+    body: 'Only the blocks you touch are rewritten. Tick a to-do and Git shows exactly that one line.',
+    duration: 6000,
   },
 ];
 
@@ -58,7 +61,6 @@ const sections = [
 
 const blocks = [
   { icon: 'Aa', title: 'Text', desc: 'Just start writing.' },
-  { icon: 'H1', title: 'Heading 1', desc: 'Big section heading.' },
   { icon: '☑', title: 'To-do list', desc: 'Track tasks with a to-do list.' },
   { icon: '💡', title: 'Callout', desc: 'Make writing stand out.' },
   { icon: '▦', title: 'Table', desc: 'Add a simple table.' },
@@ -69,14 +71,81 @@ const todos = [
   { text: 'Update the changelog', done: true },
   { text: 'Record the demo video', done: false },
 ];
+
+// Markdown source of each scene (first frame; the script changes it as it plays).
+const tableLines = (order: readonly number[]) =>
+  [
+    '| Feature        | Owner | Points |',
+    '| -------------- | ----- | -----: |',
+    '| Authentication | Ada   | 5      |',
+    '| Notifications  | Linus | 8      |',
+    '| Billing        | Grace | 13     |',
+  ].map((line) => {
+    const cells = line.slice(2, -2).split(' | ');
+    return `| ${order.map((i) => cells[i]).join(' | ')} |`;
+  });
+
+const sources: Record<string, Line[]> = {
+  paste: [
+    { text: '# Q4 roadmap' },
+    { text: '' },
+    { text: 'Pulled from the planning sheet:' },
+    { text: '' },
+    ...tableLines([0, 1, 2]).map((text) => ({ text, id: 'pasted', hidden: true })),
+  ],
+  table: [
+    { text: '# Q4 roadmap' },
+    { text: '' },
+    ...tableLines([0, 1, 2]).map((text, i) => ({ text, id: `row-${i}` })),
+    { text: '| Search         | Ada   | 3      |', id: 'row-new', hidden: true },
+  ],
+  slash: [
+    { text: '# Release notes' },
+    { text: '' },
+    { text: 'Version 0.2 ships tables and an outline.' },
+    { text: '', id: 'gap', hidden: true },
+    { text: '> [!TIP]', id: 'tip', hidden: true },
+    { text: '> ', id: 'tip-text', hidden: true },
+  ],
+  diff: [
+    { text: '# Release checklist' },
+    { text: '' },
+    { text: '## Before the release' },
+    { text: '' },
+    { text: '- [x] Freeze the feature list' },
+    { text: '- [x] Update the changelog' },
+    { text: '- [ ] Record the demo video', id: 'todo' },
+  ],
+};
+
+// The table rows after the drag (Points before Owner).
+const reordered = tableLines([0, 2, 1]);
+
+const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** Dims Markdown syntax (#, >, |, list markers, delimiter rows), like the hero mock. */
+function md(text: string): string {
+  if (/^\|[\s:|-]+\|$/.test(text)) return `<span class="m">${escape(text)}</span>`;
+  if (text.startsWith('|')) return escape(text).replace(/\|/g, '<span class="m">|</span>');
+  const marker = /^(#{1,6} |&gt; \[!\w+\]|&gt; ?|- \[[ x]\] )/;
+  return escape(text).replace(marker, '<span class="m">$1</span>');
+}
+
+// One string: inside <pre>, whitespace from template formatting would become blank lines.
+const lineHtml = (text: string) => `<span class="line">${md(text)}</span>`;
+const outlineHtml = [
+  lineHtml('# Architecture'),
+  lineHtml(''),
+  ...sections.map((s) => `<span class="block" data-key="${s.key}">${[`## ${s.title}`, s.text, ''].map(lineHtml).join('')}</span>`),
+].join('');
 ---
 
 <section class="section showcase" id="see-it-work">
   <div class="container">
     <div class="head">
       <p class="eyebrow">See it work</p>
-      <h2 class="section-title">Not a preview.<br />A page you work in.</h2>
-      <p class="lead">What you'll do in your first five minutes, and the Markdown each one writes to disk.</p>
+      <h2 class="section-title">Edit the page.<br />Get clean Markdown.</h2>
+      <p class="lead">On the left, what you do in MDotion. On the right, what lands in the file.</p>
     </div>
 
     <div class="player">
@@ -91,12 +160,11 @@ const todos = [
               aria-controls={`scene-${s.id}`}
               aria-selected={i === 0 ? 'true' : 'false'}
               data-scene={s.id}
-              data-file={s.file}
               data-duration={s.duration}
+              data-body={s.body}
               style={`--duration: ${s.duration}ms`}
             >
-              <span class="tab-title">{s.title}</span>
-              <span class="tab-body">{s.body}</span>
+              {s.title}
               <span class="tab-progress" aria-hidden="true">
                 <span />
               </span>
@@ -106,20 +174,9 @@ const todos = [
       </div>
 
       <div class="window editor-palette">
-        <div class="toolbar" aria-hidden="true">
-          <span class="file">
-            <svg width="14" height="14" viewBox="0 0 16 16">
-              <path d="M4 1.5h5.2L13 5.3V14a.5.5 0 0 1-.5.5h-8.5A.5.5 0 0 1 3.5 14V2a.5.5 0 0 1 .5-.5Z" fill="currentColor" opacity=".55" />
-              <path d="M9 1.5V5a.5.5 0 0 0 .5.5H13" fill="none" stroke="currentColor" opacity=".9" />
-            </svg>
-            <span class="file-name">{scenes[0].file}</span>
-          </span>
-          <span class="seg"><span class="on">Visual</span><span>Markdown</span></span>
-        </div>
-
-        <div class="scenes">
-          <!-- 1. Paste a spreadsheet -->
-          <div class="scene scene-paste" id="scene-paste" role="tabpanel" aria-labelledby="tab-paste" data-step="0">
+        <!-- 1. Paste a spreadsheet -->
+        <div class="scene scene-paste" id="scene-paste" role="tabpanel" aria-labelledby="tab-paste" data-step="0">
+          <div class="pane visual">
             <div class="page">
               <h3 class="title">Q4 roadmap</h3>
               <p>Pulled from the planning sheet:</p>
@@ -163,22 +220,19 @@ const todos = [
 
             <kbd class="key key-copy" aria-hidden="true">⌘C</kbd>
             <kbd class="key key-paste" aria-hidden="true">⌘V</kbd>
-
-            <div class="peek" aria-label="Markdown written to roadmap.md">
-              <span class="peek-head">roadmap.md</span>
-              <pre><code><span class="m">|</span> Feature        <span class="m">|</span> Owner <span class="m">|</span> Points <span class="m">|</span>
-<span class="m">| -------------- | ----- | -----: |</span>
-<span class="m">|</span> Authentication <span class="m">|</span> Ada   <span class="m">|</span> 5      <span class="m">|</span>
-<span class="m">|</span> Notifications  <span class="m">|</span> Linus <span class="m">|</span> 8      <span class="m">|</span>
-<span class="m">|</span> Billing        <span class="m">|</span> Grace <span class="m">|</span> 13     <span class="m">|</span></code></pre>
-            </div>
           </div>
 
-          <!-- 2. Edit tables -->
-          <div class="scene scene-table" id="scene-table" role="tabpanel" aria-labelledby="tab-table" data-step="0" hidden>
+          <div class="pane source" aria-label="roadmap.md">
+            <div class="source-bar"><span>roadmap.md</span><span class="status">+5 lines</span></div>
+            <pre class="code">{sources.paste.map((l) => <span class="line" data-id={l.id} hidden={l.hidden} set:html={md(l.text)} />)}</pre>
+          </div>
+        </div>
+
+        <!-- 2. Edit tables -->
+        <div class="scene scene-table" id="scene-table" role="tabpanel" aria-labelledby="tab-table" data-step="0" hidden>
+          <div class="pane visual">
             <div class="page">
               <h3 class="title">Q4 roadmap</h3>
-              <p>Pulled from the planning sheet:</p>
               <div class="edit-wrap">
                 <table class="table edit-table" aria-label="Table being edited">
                   {
@@ -209,28 +263,34 @@ const todos = [
                 <span class="col-drop" aria-hidden="true"></span>
               </div>
             </div>
-
             <span class="pointer" aria-hidden="true">
               <svg width="18" height="22" viewBox="0 0 18 22">
                 <path d="M1.5 1.5v16.2l4.3-4.1 2.9 6.6 2.9-1.3-2.9-6.5h6z" fill="#0f1419" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" />
               </svg>
             </span>
             <kbd class="key key-tab" aria-hidden="true">Tab</kbd>
-
-            <div class="peek" aria-label="Markdown written to roadmap.md">
-              <span class="peek-head">roadmap.md</span>
-              <pre><code><span class="m">|</span> Feature        <span class="m">|</span> Points <span class="m">|</span> Owner <span class="m">|</span>
-<span class="m">| -------------- | -----: | ----- |</span>
-<span class="m">|</span> Authentication <span class="m">|</span> 5      <span class="m">|</span> Ada   <span class="m">|</span>
-<span class="m">|</span> Notifications  <span class="m">|</span> 8      <span class="m">|</span> Linus <span class="m">|</span>
-<span class="m">|</span> Billing        <span class="m">|</span> 13     <span class="m">|</span> Grace <span class="m">|</span>
-<span class="m">|</span> Search         <span class="m">|</span> 3      <span class="m">|</span> Ada   <span class="m">|</span></code></pre>
-            </div>
           </div>
 
-          <!-- 3. Rearrange with the outline -->
-          <div class="scene scene-outline" id="scene-outline" role="tabpanel" aria-labelledby="tab-outline" data-step="0" hidden>
-            <div class="page outline-page">
+          <div class="pane source" aria-label="roadmap.md">
+            <div class="source-bar"><span>roadmap.md</span><span class="status">Still lined up</span></div>
+            <pre class="code">{
+              sources.table.map((l, i) => (
+                <span
+                  class="line"
+                  data-id={l.id}
+                  data-moved={l.id?.startsWith('row-') && l.id !== 'row-new' ? md(reordered[i - 2]) : undefined}
+                  hidden={l.hidden}
+                  set:html={md(l.text)}
+                />
+              ))
+            }<span class="line" data-id="row-new-moved" hidden set:html={md('| Search         | 3      | Ada   |')} /></pre>
+          </div>
+        </div>
+
+        <!-- 3. Move sections with the outline -->
+        <div class="scene scene-outline" id="scene-outline" role="tabpanel" aria-labelledby="tab-outline" data-step="0" hidden>
+          <div class="pane visual outline-visual">
+            <div class="page">
               <h3 class="title">Architecture</h3>
               <div class="sections">
                 {
@@ -264,20 +324,17 @@ const todos = [
                 <path d="M1.5 1.5v16.2l4.3-4.1 2.9 6.6 2.9-1.3-2.9-6.5h6z" fill="#0f1419" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" />
               </svg>
             </span>
-
-            <div class="peek peek-diff" aria-label="Git diff of architecture.md">
-              <span class="peek-head">architecture.md <span class="pill">4 lines moved · nothing rewritten</span></span>
-              <pre><code><span class="add">+ ## Security</span>
-<span class="add">+ Encrypted in transit. Secrets live…</span>
-  ## Components
-  Gateway, auth, billing and the event…
-<span class="del">- ## Security</span>
-<span class="del">- Encrypted in transit. Secrets live…</span></code></pre>
-            </div>
           </div>
 
-          <!-- 4. Slash menu -->
-          <div class="scene scene-slash" id="scene-slash" role="tabpanel" aria-labelledby="tab-slash" data-step="0" hidden>
+          <div class="pane source" aria-label="architecture.md">
+            <div class="source-bar"><span>architecture.md</span><span class="status">3 lines moved · nothing rewritten</span></div>
+            <pre class="code" set:html={outlineHtml} />
+          </div>
+        </div>
+
+        <!-- 4. Slash menu -->
+        <div class="scene scene-slash" id="scene-slash" role="tabpanel" aria-labelledby="tab-slash" data-step="0" hidden>
+          <div class="pane visual">
             <div class="page">
               <h3 class="title">Release notes</h3>
               <p>Version 0.2 ships tables and an outline.</p>
@@ -302,16 +359,17 @@ const todos = [
                 ))
               }
             </div>
-
-            <div class="peek" aria-label="Markdown written to release-notes.md">
-              <span class="peek-head">release-notes.md</span>
-              <pre><code><span class="m">&gt; [!TIP]</span>
-<span class="m">&gt;</span> Ship it on Friday, after the review.</code></pre>
-            </div>
           </div>
 
-          <!-- 5. One edit, one line in the diff -->
-          <div class="scene scene-diff" id="scene-diff" role="tabpanel" aria-labelledby="tab-diff" data-step="0" hidden>
+          <div class="pane source" aria-label="release-notes.md">
+            <div class="source-bar"><span>release-notes.md</span><span class="status">A GitHub alert</span></div>
+            <pre class="code">{sources.slash.map((l) => <span class="line" data-id={l.id} hidden={l.hidden} set:html={md(l.text)} />)}</pre>
+          </div>
+        </div>
+
+        <!-- 5. Clean diffs -->
+        <div class="scene scene-diff" id="scene-diff" role="tabpanel" aria-labelledby="tab-diff" data-step="0" hidden>
+          <div class="pane visual">
             <div class="page">
               <h3 class="title">Release checklist</h3>
               <h4 class="subtitle">Before the release</h4>
@@ -326,23 +384,25 @@ const todos = [
                 }
               </ul>
             </div>
-
             <span class="pointer" aria-hidden="true">
               <svg width="18" height="22" viewBox="0 0 18 22">
                 <path d="M1.5 1.5v16.2l4.3-4.1 2.9 6.6 2.9-1.3-2.9-6.5h6z" fill="#0f1419" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" />
               </svg>
             </span>
+          </div>
 
-            <div class="peek peek-diff" aria-label="Git diff of release.md">
-              <span class="peek-head">docs/release.md <span class="pill">1 line changed · the rest byte for byte</span></span>
-              <pre><code>  - [x] Freeze the feature list
-  - [x] Update the changelog
-<span class="del">- - [ ] Record the demo video</span>
-<span class="add">+ - [x] Record the demo video</span></code></pre>
-            </div>
+          <div class="pane source" aria-label="release.md">
+            <div class="source-bar"><span>release.md</span><span class="status">1 line changed · the rest byte for byte</span></div>
+            <pre class="code">{
+              sources.diff.map((l) => (
+                <span class="line" data-id={l.id} data-checked={l.id ? md('- [x] Record the demo video') : undefined} set:html={md(l.text)} />
+              ))
+            }</pre>
           </div>
         </div>
       </div>
+
+      <p class="caption">{scenes[0].body}</p>
     </div>
   </div>
 </section>
@@ -365,70 +425,59 @@ const todos = [
   }
 
   .player {
-    display: grid;
-    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
-    gap: clamp(24px, 4vw, 48px);
-    align-items: start;
-    margin-top: clamp(40px, 6vw, 64px);
+    margin-top: clamp(32px, 5vw, 48px);
   }
 
-  /* Tabs */
+  /* Tabs: one row above the window, with the progress of the playing scene. */
   .tabs {
-    display: grid;
-    gap: 2px;
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
   }
 
   .tab {
     position: relative;
-    display: grid;
-    gap: 4px;
-    padding: 14px 18px 16px;
+    flex: none;
+    height: 36px;
+    padding: 0 14px;
     border: 0;
-    border-radius: 12px;
+    border-radius: 999px;
     background: transparent;
     font: inherit;
-    text-align: left;
+    font-size: 0.9375rem;
+    font-weight: 500;
     color: var(--text-secondary);
+    white-space: nowrap;
     cursor: pointer;
     transition:
       background-color 150ms ease,
+      color 150ms ease,
       transform 160ms var(--ease-out);
   }
 
   .tab:active {
-    transform: scale(0.98);
+    transform: scale(0.97);
   }
 
   .tab[aria-selected='true'] {
     background: var(--bg-subtle);
+    color: var(--ink);
   }
 
   @media (hover: hover) and (pointer: fine) {
     .tab:hover {
-      background: var(--bg-subtle);
+      color: var(--ink);
     }
-  }
-
-  .tab-title {
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    color: var(--ink);
-  }
-
-  .tab-body {
-    font-size: 0.875rem;
-    line-height: 1.5;
   }
 
   .tab-progress {
     position: absolute;
-    left: 18px;
-    right: 18px;
-    bottom: 7px;
+    left: 14px;
+    right: 14px;
+    bottom: 5px;
     height: 2px;
     overflow: hidden;
     border-radius: 1px;
-    background: var(--hairline);
     opacity: 0;
     transition: opacity 150ms ease;
   }
@@ -436,7 +485,7 @@ const todos = [
   .tab-progress span {
     display: block;
     height: 100%;
-    background: var(--ink);
+    background: var(--text-tertiary);
     transform: scaleX(0);
     transform-origin: left;
   }
@@ -455,9 +504,19 @@ const todos = [
     }
   }
 
-  /* Window */
+  .caption {
+    max-width: 640px;
+    margin-top: 16px;
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+  }
+
+  /* Window: the visual editor and the Markdown file side by side. */
   .window {
-    position: relative;
+    --gutter-added: #2ea043;
+    --gutter-modified: #2090d3;
+
+    display: grid;
     overflow: hidden;
     border-radius: 14px;
     background: var(--e-bg);
@@ -466,56 +525,18 @@ const todos = [
     text-align: left;
   }
 
-  .toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    height: 44px;
-    padding-inline: 16px;
-    font-size: 0.8125rem;
-  }
-
-  .file {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--e-text);
-  }
-
-  .file svg {
-    color: var(--e-text-2);
-  }
-
-  .seg {
-    display: flex;
-    padding: 2px;
-    border-radius: 8px;
-    background: var(--e-hover);
-    color: var(--e-text-2);
-  }
-
-  .seg span {
-    padding: 2px 9px;
-    border-radius: 6px;
-  }
-
-  .seg .on {
-    background: var(--e-tile);
-    color: var(--e-text);
-    box-shadow: inset 0 0 0 1px var(--e-divider);
-  }
-
-  /* Every scene has the same height, so switching never moves the page. */
-  .scenes {
-    display: grid;
+  @media (prefers-color-scheme: dark) {
+    .window {
+      --gutter-added: #3fb950;
+      --gutter-modified: #1b81a8;
+    }
   }
 
   .scene {
-    position: relative;
     grid-area: 1 / 1;
-    height: 420px;
-    overflow: hidden;
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    height: 340px;
     font-size: 0.9375rem;
     line-height: 1.5;
   }
@@ -536,8 +557,14 @@ const todos = [
     }
   }
 
+  .pane {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+  }
+
   .page {
-    padding: 20px 36px;
+    padding: 28px 36px;
   }
 
   .page p {
@@ -568,7 +595,125 @@ const todos = [
     }
   }
 
-  /* A pointer acting on the page. Scenes move it with --x / --y. */
+  /* Markdown source, like the IDE's text editor next to MDotion. */
+  .source {
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--e-divider);
+    background: var(--e-code-bg);
+  }
+
+  .source-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 44px;
+    padding: 0 16px;
+    font-size: 0.8125rem;
+    color: var(--e-text-2);
+  }
+
+  .status {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--diff-add-bg);
+    color: var(--diff-add-text);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(2px);
+    transition:
+      opacity 200ms var(--ease-out),
+      transform 200ms var(--ease-out);
+  }
+
+  .scene[data-done] .status {
+    opacity: 1;
+    transform: none;
+  }
+
+  .code {
+    flex: 1;
+    margin: 0;
+    padding: 0 0 16px;
+    overflow: hidden;
+    counter-reset: line;
+    font-family: var(--font-code);
+    font-size: 0.75rem;
+    line-height: 1.75;
+  }
+
+  .code :global(.block) {
+    display: block;
+  }
+
+  .code :global(.line) {
+    position: relative;
+    display: block;
+    min-height: 1.75em;
+    padding-left: 52px;
+    padding-right: 12px;
+    white-space: pre;
+    transition: background-color 600ms ease;
+  }
+
+  .code :global(.line[hidden]) {
+    display: none;
+  }
+
+  .code :global(.line)::before {
+    counter-increment: line;
+    content: counter(line);
+    position: absolute;
+    left: 0;
+    width: 34px;
+    text-align: right;
+    color: var(--e-text-3);
+  }
+
+  /* VS Code's gutter markers: added (green) and modified (blue) lines. */
+  .code :global(.line)::after {
+    content: '';
+    position: absolute;
+    left: 42px;
+    top: 3px;
+    bottom: 3px;
+    width: 3px;
+    border-radius: 1px;
+    background: transparent;
+  }
+
+  .code :global(.line[data-mark='added'])::after {
+    background: var(--gutter-added);
+  }
+
+  .code :global(.line[data-mark='modified'])::after {
+    background: var(--gutter-modified);
+  }
+
+  .code :global(.line[data-flash]) {
+    background: var(--e-selection);
+    transition: none;
+  }
+
+  .code :global(.line[data-new]) {
+    animation: line-in 260ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 50ms);
+  }
+
+  @keyframes line-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+
+  .code :global(.m) {
+    color: var(--e-text-3);
+  }
+
+  /* The pointer acting on the page. Scenes move it with --x / --y. */
   .pointer {
     position: absolute;
     top: 0;
@@ -592,71 +737,6 @@ const todos = [
 
   .scene[data-press] .pointer svg {
     transform: scale(0.88);
-  }
-
-  /* Markdown peek: what the scene wrote to disk. */
-  .peek {
-    position: absolute;
-    right: 16px;
-    bottom: 16px;
-    max-width: calc(100% - 32px);
-    padding: 10px 14px 12px;
-    border-radius: 10px;
-    background: var(--e-popover);
-    box-shadow: var(--e-popover-shadow);
-    opacity: 0;
-    transform: translateY(8px) scale(0.98);
-    transform-origin: bottom right;
-    transition:
-      opacity 240ms var(--ease-out),
-      transform 240ms var(--ease-out);
-  }
-
-  .scene[data-peek] .peek {
-    opacity: 1;
-    transform: none;
-  }
-
-  .peek-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-    font-size: 0.75rem;
-    color: var(--e-text-2);
-  }
-
-  .peek pre {
-    margin: 0;
-    font-family: var(--font-code);
-    font-size: 0.75rem;
-    line-height: 1.6;
-    white-space: pre;
-    overflow: hidden;
-  }
-
-  .peek code {
-    font-size: inherit;
-  }
-
-  .peek .m {
-    color: var(--e-text-3);
-  }
-
-  .peek-diff .add {
-    color: var(--diff-add-text);
-  }
-
-  .peek-diff .del {
-    color: var(--diff-del-text);
-  }
-
-  .pill {
-    padding: 1px 7px;
-    border-radius: 999px;
-    background: var(--diff-add-bg);
-    color: var(--diff-add-text);
   }
 
   .key {
@@ -714,7 +794,7 @@ const todos = [
   .paste-slot {
     position: relative;
     min-height: 26px;
-    margin-top: 10px;
+    margin-top: 12px;
   }
 
   .scene-paste .caret {
@@ -734,8 +814,8 @@ const todos = [
 
   .sheet {
     position: absolute;
-    top: 20px;
-    right: 24px;
+    top: 112px;
+    right: 28px;
     width: 300px;
     overflow: hidden;
     border-radius: 10px;
@@ -810,12 +890,12 @@ const todos = [
   }
 
   .key-copy {
-    top: 196px;
-    right: 132px;
+    top: 72px;
+    right: 40px;
   }
 
   .key-paste {
-    top: 128px;
+    top: 112px;
     left: 52px;
   }
 
@@ -847,7 +927,7 @@ const todos = [
   .edit-wrap {
     position: relative;
     display: inline-block;
-    margin-top: 10px;
+    margin-top: 12px;
     padding-bottom: 22px;
   }
 
@@ -963,8 +1043,8 @@ const todos = [
   }
 
   .key-tab {
-    top: 232px;
-    left: 220px;
+    top: 230px;
+    left: 236px;
   }
 
   .scene-table[data-tab] .key-tab {
@@ -972,15 +1052,15 @@ const todos = [
     transform: none;
   }
 
-  /* ---- Scene 3: rearrange with the outline ---- */
-  .scene-outline {
+  /* ---- Scene 3: move sections with the outline ---- */
+  .outline-visual {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 190px;
+    grid-template-columns: minmax(0, 1fr) 170px;
   }
 
   .sections {
     display: grid;
-    gap: 4px;
+    gap: 6px;
   }
 
   .sec {
@@ -1012,7 +1092,7 @@ const todos = [
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 14px 10px;
+    padding: 28px 10px;
     border-left: 1px solid var(--e-divider);
     font-size: 0.8125rem;
   }
@@ -1072,10 +1152,6 @@ const todos = [
     opacity: 1;
   }
 
-  .scene-outline .peek {
-    right: 206px;
-  }
-
   /* ---- Scene 4: slash menu ---- */
   .typing {
     min-height: 1.5em;
@@ -1103,7 +1179,7 @@ const todos = [
 
   .menu {
     position: absolute;
-    top: 152px;
+    top: 132px;
     left: 36px;
     width: 280px;
     padding: 6px 0;
@@ -1188,11 +1264,11 @@ const todos = [
     transform: none;
   }
 
-  .scene-slash[data-step='3']:not([data-peek]) .callout .caret {
+  .scene-slash[data-step='3']:not([data-done]) .callout .caret {
     visibility: visible;
   }
 
-  /* ---- Scene 5: one edit, one line in the diff ---- */
+  /* ---- Scene 5: clean diffs ---- */
   .subtitle {
     margin: 18px 0 4px;
     font-size: 1.25rem;
@@ -1247,14 +1323,8 @@ const todos = [
   }
 
   @media (max-width: 860px) {
-    .player {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    /* Five tabs: a row that scrolls sideways, titles only. */
+    /* Narrow windows and phones: the panes stack, the tabs scroll sideways. */
     .tabs {
-      display: flex;
-      gap: 4px;
       margin-inline: calc(var(--gutter) * -1);
       padding-inline: var(--gutter);
       overflow-x: auto;
@@ -1267,35 +1337,32 @@ const todos = [
     }
 
     .tab {
-      flex: none;
-      padding: 10px 14px 14px;
       scroll-snap-align: start;
     }
 
-    .tab-title {
-      font-size: 0.875rem;
-      white-space: nowrap;
+    .scene {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: 300px 210px;
+      height: auto;
     }
 
-    .tab-body {
-      display: none;
+    .source {
+      border-left: 0;
+      border-top: 1px solid var(--e-divider);
     }
 
-    .tab-progress {
-      left: 14px;
-      right: 14px;
-      bottom: 5px;
+    .source-bar {
+      height: 36px;
     }
   }
 
   @media (max-width: 640px) {
     .scene {
-      height: 440px;
       font-size: 0.875rem;
     }
 
     .page {
-      padding: 16px 18px;
+      padding: 18px;
     }
 
     .title {
@@ -1309,57 +1376,70 @@ const todos = [
 
     .sheet {
       top: auto;
-      bottom: 16px;
+      bottom: 12px;
       right: 12px;
       left: 12px;
       width: auto;
     }
 
     .key-copy {
-      top: auto;
-      bottom: 150px;
-      right: 24px;
+      top: 92px;
+      right: 18px;
     }
 
     .key-paste {
-      top: 112px;
+      top: 92px;
       left: 34px;
     }
 
     .key-tab {
-      top: 210px;
+      top: 200px;
       left: auto;
       right: 18px;
     }
 
-    .scene-outline {
-      grid-template-columns: minmax(0, 1fr) 132px;
+    .outline-visual {
+      grid-template-columns: minmax(0, 1fr) 128px;
     }
 
-    /* Narrow page: the headings tell the story, the diff needs the room. */
     .sec p {
       display: none;
     }
 
     .outline {
-      padding-inline: 4px;
+      padding: 18px 4px;
     }
 
     .item {
       padding-left: 14px;
     }
 
-    .peek,
-    .scene-outline .peek {
-      right: 12px;
-      left: 12px;
-      max-width: none;
-    }
-
     .menu {
-      top: 136px;
+      top: 116px;
       left: 18px;
       width: min(260px, calc(100% - 36px));
+    }
+
+    .code {
+      font-size: 0.6875rem;
+    }
+
+    .code :global(.line) {
+      padding-left: 40px;
+    }
+
+    .code :global(.line)::before {
+      width: 24px;
+    }
+
+    .code :global(.line)::after {
+      left: 31px;
+    }
+
+    .status {
+      max-width: 62%;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
   }
 
@@ -1385,16 +1465,19 @@ const todos = [
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)';
 
-  /** Boolean data attribute: `flag(el, 'peek', true)` → `data-peek`. */
+  /** Boolean data attribute: `flag(el, 'done', true)` → `data-done`. */
   function flag(el: HTMLElement, name: string, on: boolean): void {
     el.toggleAttribute(`data-${name}`, on);
   }
 
   /** Types the element's `data-text` one character at a time; returns when it is done. */
-  function typeInto(at: At, el: HTMLElement, start: number, step: number): number {
+  function typeInto(at: At, el: HTMLElement, start: number, step: number, onType?: (text: string) => void): number {
     const text = el.dataset.text ?? '';
     for (let i = 1; i <= text.length; i += 1) {
-      at(start + i * step, () => (el.textContent = text.slice(0, i)));
+      at(start + i * step, () => {
+        el.textContent = text.slice(0, i);
+        onType?.(text.slice(0, i));
+      });
     }
     return start + text.length * step;
   }
@@ -1413,12 +1496,57 @@ const todos = [
     }
   }
 
-  /** The scene's pointer: moves to an element (relative to the scene) and presses. */
+  /** The Markdown pane of a scene: lines appear, change and get VS Code's gutter marks. */
+  function sourceOf(scene: HTMLElement) {
+    const code = scene.querySelector<HTMLElement>('.code')!;
+    const lines = (id: string) => [...code.querySelectorAll<HTMLElement>(`.line[data-id="${id}"]`)];
+    const initial = new Map([...code.querySelectorAll<HTMLElement>('.line')].map((l) => [l, { html: l.innerHTML, hidden: l.hidden }]));
+    const flash = (line: HTMLElement) => {
+      line.dataset.flash = '';
+      requestAnimationFrame(() => requestAnimationFrame(() => delete line.dataset.flash));
+    };
+    return {
+      code,
+      /** Shows hidden lines, one after the other, marked as added. */
+      add(id: string) {
+        lines(id).forEach((line, i) => {
+          line.hidden = false;
+          line.style.setProperty('--i', String(i));
+          line.dataset.new = '';
+          line.dataset.mark = 'added';
+        });
+      },
+      /** Replaces the content of lines (HTML highlighted on the server), marked as modified. */
+      change(id: string, html: (line: HTMLElement) => string) {
+        for (const line of lines(id)) {
+          line.innerHTML = html(line);
+          line.dataset.mark = 'modified';
+          flash(line);
+        }
+      },
+      mark(line: HTMLElement) {
+        line.dataset.mark = 'modified';
+        flash(line);
+      },
+      reset() {
+        for (const [line, state] of initial) {
+          line.innerHTML = state.html;
+          line.hidden = state.hidden;
+          delete line.dataset.mark;
+          delete line.dataset.new;
+          delete line.dataset.flash;
+        }
+      },
+    };
+  }
+
+  /** The scene's pointer: moves to an element (relative to its pane) and presses. */
   function pointerOf(scene: HTMLElement) {
     const pointer = scene.querySelector<HTMLElement>('.pointer')!;
+    const pane = pointer.parentElement!;
     return {
       to(el: Element, dx = 0, dy = 0) {
-        const box = scene.getBoundingClientRect();
+        const box = pane.getBoundingClientRect();
         const r = el.getBoundingClientRect();
         pointer.style.setProperty('--x', `${r.left - box.left + Math.min(r.width / 2, 34) + dx}px`);
         pointer.style.setProperty('--y', `${r.top - box.top + r.height / 2 - 4 + dy}px`);
@@ -1440,22 +1568,28 @@ const todos = [
   }
 
   function pasteScene(root: HTMLElement): Scene {
+    const source = sourceOf(root);
     const set = (step: number) => (root.dataset.step = String(step));
     return {
       play(at) {
         at(700, () => set(1)); // select A1:C4
         at(1600, () => set(2)); // ⌘C
         at(2500, () => set(3)); // ⌘V at the caret
-        at(3100, () => set(4)); // the table arrives
-        at(4300, () => flag(root, 'peek', true)); // the Markdown on disk
+        at(3100, () => {
+          set(4); // the table arrives, and lands in the file
+          source.add('pasted');
+        });
+        at(3700, () => flag(root, 'done', true));
       },
       reset() {
         set(0);
-        flag(root, 'peek', false);
+        source.reset();
+        flag(root, 'done', false);
       },
       finish() {
         set(4);
-        flag(root, 'peek', true);
+        source.add('pasted');
+        flag(root, 'done', true);
       },
     };
   }
@@ -1467,6 +1601,7 @@ const todos = [
     const drop = root.querySelector<HTMLElement>('.col-drop')!;
     const typed = [...root.querySelectorAll<HTMLElement>('.new-row .typed')];
     const pointer = pointerOf(root);
+    const source = sourceOf(root);
     const rows = () => [...table.rows];
     const cell = (row: HTMLTableRowElement, col: string) => row.querySelector<HTMLElement>(`[data-col="${col}"]`)!;
     const set = (step: number) => (root.dataset.step = String(step));
@@ -1475,6 +1610,14 @@ const todos = [
     /** Points moves before Owner in every row. */
     const reorder = () => rows().forEach((row) => row.insertBefore(cell(row, 'points'), cell(row, 'owner')));
     const restore = () => rows().forEach((row, r) => original[r].forEach((c) => row.appendChild(c)));
+    /** The file after the column move: every row in the new order, still padded. */
+    const moveColumnInSource = () => {
+      for (const id of ['row-0', 'row-1', 'row-2', 'row-3', 'row-4']) source.change(id, (line) => line.dataset.moved!);
+      source.code.querySelector<HTMLElement>('[data-id="row-new"]')!.hidden = true;
+      const moved = source.code.querySelector<HTMLElement>('[data-id="row-new-moved"]')!;
+      moved.hidden = false;
+      moved.dataset.mark = 'added';
+    };
 
     return {
       play(at) {
@@ -1498,9 +1641,10 @@ const todos = [
         t = typeInto(at, typed[1], t + 350, 90);
         at(t + 150, () => flag(root, 'tab', false));
         t = typeInto(at, typed[2], t + 300, 90);
+        at(t + 250, () => source.add('row-new'));
 
         const head = rows()[0];
-        at(t + 400, () => {
+        at(t + 900, () => {
           // The column grip appears over Points; the pointer takes it.
           const points = cell(head, 'points');
           grip.style.setProperty('--grip-x', `${points.offsetLeft + points.offsetWidth / 2 - 12}px`);
@@ -1508,8 +1652,8 @@ const todos = [
           // Aim at the header's top edge, where the grip sits (the grip itself may still be moving).
           pointer.to(points, 0, -points.offsetHeight / 2);
         });
-        at(t + 1100, () => pointer.press(true));
-        at(t + 1300, () => {
+        at(t + 1600, () => pointer.press(true));
+        at(t + 1800, () => {
           // Drag left: Points slides over Owner, which moves right to make room.
           const owner = cell(head, 'owner');
           const points = cell(head, 'points');
@@ -1524,7 +1668,7 @@ const todos = [
           flag(root, 'dragging', true);
           pointer.to(owner, 0, -owner.offsetHeight / 2);
         });
-        at(t + 2100, () => {
+        at(t + 2600, () => {
           // Drop: the cells already show their final place, so swap them without motion.
           for (const row of rows()) {
             for (const col of ['points', 'owner']) {
@@ -1540,12 +1684,13 @@ const todos = [
           }
           flag(root, 'dragging', false);
           pointer.press(false);
+          moveColumnInSource();
         });
-        at(t + 2500, () => {
+        at(t + 3000, () => {
           flag(root, 'grip', false);
           pointer.hide();
         });
-        at(t + 2800, () => flag(root, 'peek', true));
+        at(t + 3300, () => flag(root, 'done', true));
       },
       reset() {
         for (const row of rows()) {
@@ -1553,8 +1698,9 @@ const todos = [
         }
         restore();
         typed.forEach((el) => (el.textContent = ''));
-        for (const name of ['rows', 'tab', 'grip', 'dragging', 'peek']) flag(root, name, false);
+        for (const name of ['rows', 'tab', 'grip', 'dragging', 'done']) flag(root, name, false);
         pointer.reset();
+        source.reset();
         set(0);
       },
       finish() {
@@ -1562,7 +1708,8 @@ const todos = [
         reorder();
         typed.forEach((el) => (el.textContent = el.dataset.text ?? ''));
         flag(root, 'rows', true);
-        flag(root, 'peek', true);
+        moveColumnInSource();
+        flag(root, 'done', true);
       },
     };
   }
@@ -1572,19 +1719,28 @@ const todos = [
     const sections = root.querySelector<HTMLElement>('.sections')!;
     const dropLine = root.querySelector<HTMLElement>('.drop-line')!;
     const pointer = pointerOf(root);
+    const source = sourceOf(root);
     const item = (key: string) => items.querySelector<HTMLElement>(`[data-key="${key}"]`)!;
     const section = (key: string) => sections.querySelector<HTMLElement>(`[data-key="${key}"]`)!;
+    const block = (key: string) => source.code.querySelector<HTMLElement>(`.block[data-key="${key}"]`)!;
     const originalItems = [...items.children];
     const originalSections = [...sections.children];
+    const originalCode = [...source.code.children];
 
     const reorder = () => {
       items.insertBefore(item('security'), item('components'));
       sections.insertBefore(section('security'), section('components'));
+      source.code.insertBefore(block('security'), block('components'));
     };
 
     const restore = () => {
       originalItems.forEach((el) => items.appendChild(el));
       originalSections.forEach((el) => sections.appendChild(el));
+      originalCode.forEach((el) => source.code.appendChild(el));
+    };
+
+    const markMoved = () => {
+      for (const line of block('security').querySelectorAll<HTMLElement>('.line')) source.mark(line);
     };
 
     return {
@@ -1607,43 +1763,54 @@ const todos = [
         });
         at(2600, () => {
           // Drop: both items already show their final place, so swap them in the
-          // DOM without motion; the page sections slide into the new order.
+          // DOM without motion; the page sections and the file's lines slide.
           for (const el of [security, components]) {
             el.style.transition = 'none';
             el.style.transform = '';
           }
-          flip([...(sections.children as HTMLCollectionOf<HTMLElement>)], reorder);
+          const codeBlocks = [...source.code.querySelectorAll<HTMLElement>('.block')];
+          flip([...(sections.children as HTMLCollectionOf<HTMLElement>), ...codeBlocks], reorder);
           security.getBoundingClientRect();
           security.style.transition = '';
           components.style.transition = '';
           delete security.dataset.lifted;
           section('security').dataset.flash = '';
+          markMoved();
           flag(root, 'dragging', false);
           pointer.press(false);
         });
         at(2700, () => delete section('security').dataset.flash);
         at(3200, () => pointer.hide());
-        at(3600, () => flag(root, 'peek', true));
+        at(3300, () => flag(root, 'done', true));
       },
       reset() {
         for (const key of ['security', 'components']) item(key).style.transform = '';
         delete item('security').dataset.lifted;
         restore();
+        source.reset();
         pointer.reset();
         flag(root, 'dragging', false);
-        flag(root, 'peek', false);
+        flag(root, 'done', false);
       },
       finish() {
         restore();
         reorder();
-        flag(root, 'peek', true);
+        markMoved();
+        flag(root, 'done', true);
       },
     };
   }
 
   function slashScene(root: HTMLElement): Scene {
     const [command, callout] = root.querySelectorAll<HTMLElement>('.typed');
+    const source = sourceOf(root);
+    const tipText = source.code.querySelector<HTMLElement>('[data-id="tip-text"]')!;
     const set = (step: number) => (root.dataset.step = String(step));
+    /** The callout text as it is typed, mirrored in the file. */
+    const mirror = (text: string) => {
+      tipText.innerHTML = `<span class="m">&gt;</span> ${text.replace(/&/g, '&amp;').replace(/</g, '&lt;')}`;
+    };
+    const showAlert = () => ['gap', 'tip', 'tip-text'].forEach((id) => source.add(id));
     return {
       play(at) {
         at(600, () => {
@@ -1652,20 +1819,26 @@ const todos = [
         });
         const typed = typeInto(at, command, 900, 200); // "/cal"
         at(typed - 200, () => set(2));
-        at(typed + 600, () => set(3)); // Enter: the callout
-        const done = typeInto(at, callout, typed + 900, 40);
-        at(done + 500, () => flag(root, 'peek', true));
+        at(typed + 600, () => {
+          set(3); // Enter: the callout, and its alert in the file
+          showAlert();
+        });
+        const done = typeInto(at, callout, typed + 900, 40, mirror);
+        at(done + 400, () => flag(root, 'done', true));
       },
       reset() {
         command.textContent = '';
         callout.textContent = '';
+        source.reset();
         set(0);
-        flag(root, 'peek', false);
+        flag(root, 'done', false);
       },
       finish() {
         callout.textContent = callout.dataset.text ?? '';
         set(3);
-        flag(root, 'peek', true);
+        showAlert();
+        mirror(callout.dataset.text ?? '');
+        flag(root, 'done', true);
       },
     };
   }
@@ -1673,25 +1846,31 @@ const todos = [
   function diffScene(root: HTMLElement): Scene {
     const target = root.querySelector<HTMLElement>('[data-target] .box')!;
     const pointer = pointerOf(root);
+    const source = sourceOf(root);
+    const check = () => {
+      flag(root, 'checked', true);
+      source.change('todo', (line) => line.dataset.checked!);
+    };
     return {
       play(at) {
         at(500, () => pointer.to(target, -2, 2));
         at(1300, () => pointer.press(true));
         at(1450, () => {
           pointer.press(false);
-          flag(root, 'checked', true);
+          check();
         });
         at(2000, () => pointer.hide());
-        at(2300, () => flag(root, 'peek', true));
+        at(2100, () => flag(root, 'done', true));
       },
       reset() {
         pointer.reset();
+        source.reset();
         flag(root, 'checked', false);
-        flag(root, 'peek', false);
+        flag(root, 'done', false);
       },
       finish() {
-        flag(root, 'checked', true);
-        flag(root, 'peek', true);
+        check();
+        flag(root, 'done', true);
       },
     };
   }
@@ -1707,7 +1886,7 @@ const todos = [
   for (const player of document.querySelectorAll<HTMLElement>('.player')) {
     const tabList = player.querySelector<HTMLElement>('.tabs')!;
     const tabs = [...player.querySelectorAll<HTMLButtonElement>('.tab')];
-    const fileName = player.querySelector<HTMLElement>('.file-name')!;
+    const caption = player.querySelector<HTMLElement>('.caption')!;
     const scenes = new Map(
       tabs.map((tab) => [tab.dataset.scene!, builders[tab.dataset.scene!](player.querySelector(`#scene-${tab.dataset.scene}`)!)]),
     );
@@ -1721,11 +1900,10 @@ const todos = [
       delete player.dataset.playing;
     };
 
-    /** Keeps the active tab in view in the sideways tab row (phones), without scrolling the page. */
+    /** Keeps the active tab in view when the tab row scrolls sideways (phones), without scrolling the page. */
     const revealTab = (tab: HTMLElement) => {
       if (tabList.scrollWidth <= tabList.clientWidth) return;
-      const left = tab.offsetLeft - tabList.offsetLeft - 16;
-      tabList.scrollTo({ left, behavior: reduceMotion ? 'auto' : 'smooth' });
+      tabList.scrollTo({ left: tab.offsetLeft - tabList.offsetLeft - 16, behavior: reduceMotion ? 'auto' : 'smooth' });
     };
 
     const select = (index: number) => {
@@ -1738,7 +1916,7 @@ const todos = [
         player.querySelector<HTMLElement>(`#${tab.getAttribute('aria-controls')}`)!.hidden = !on;
         scenes.get(tab.dataset.scene!)!.reset();
       });
-      fileName.textContent = tabs[index].dataset.file ?? '';
+      caption.textContent = tabs[index].dataset.body ?? '';
       revealTab(tabs[index]);
       const scene = scenes.get(tabs[index].dataset.scene!)!;
       if (reduceMotion) {
