@@ -1,0 +1,1968 @@
+---
+// Scripted demos of what MDotion does: the visual editor on the left, the
+// Markdown file on the right, both changing as the scene plays. Each scene is
+// driven by data attributes the script sets on a timeline; everything visual
+// is CSS transitions on transform / opacity.
+
+type Line = { text: string; id?: string; hidden?: boolean };
+
+const scenes = [
+  {
+    id: 'paste',
+    file: 'roadmap.md',
+    title: 'Paste a spreadsheet',
+    body: 'Copy a range in Excel or Google Sheets and paste it: you get a clean GFM table, numbers still aligned.',
+    duration: 7000,
+  },
+  {
+    id: 'table',
+    file: 'roadmap.md',
+    title: 'Edit tables',
+    body: 'Add rows, Tab between cells, drag columns. No pipes to count, and the Markdown stays lined up.',
+    duration: 8800,
+  },
+  {
+    id: 'outline',
+    file: 'architecture.md',
+    title: 'Move sections',
+    body: 'Drag a heading in the outline and its whole section moves. In Git, the lines just change place.',
+    duration: 7000,
+  },
+  {
+    id: 'slash',
+    file: 'release-notes.md',
+    title: 'Type /',
+    body: 'Callouts, to-dos, tables and code from the slash menu, saved as Markdown GitHub renders.',
+    duration: 7000,
+  },
+  {
+    id: 'diff',
+    file: 'release.md',
+    title: 'Clean diffs',
+    body: 'Only the blocks you touch are rewritten. Tick a to-do and Git shows exactly that one line.',
+    duration: 6000,
+  },
+];
+
+const sheet = [
+  ['Feature', 'Owner', 'Points'],
+  ['Authentication', 'Ada', '5'],
+  ['Notifications', 'Linus', '8'],
+  ['Billing', 'Grace', '13'],
+];
+
+const columns = ['feature', 'owner', 'points'] as const;
+
+const sections = [
+  { key: 'overview', title: 'Overview', text: 'Four services behind a single gateway.' },
+  { key: 'components', title: 'Components', text: 'Gateway, auth, billing and the event store.' },
+  { key: 'security', title: 'Security', text: 'Encrypted in transit. Secrets live in the vault.' },
+];
+
+const blocks = [
+  { icon: 'Aa', title: 'Text', desc: 'Just start writing.' },
+  { icon: '☑', title: 'To-do list', desc: 'Track tasks with a to-do list.' },
+  { icon: '💡', title: 'Callout', desc: 'Make writing stand out.' },
+  { icon: '▦', title: 'Table', desc: 'Add a simple table.' },
+];
+
+const todos = [
+  { text: 'Freeze the feature list', done: true },
+  { text: 'Update the changelog', done: true },
+  { text: 'Record the demo video', done: false },
+];
+
+// Markdown source of each scene (first frame; the script changes it as it plays).
+const tableLines = (order: readonly number[]) =>
+  [
+    '| Feature        | Owner | Points |',
+    '| -------------- | ----- | -----: |',
+    '| Authentication | Ada   | 5      |',
+    '| Notifications  | Linus | 8      |',
+    '| Billing        | Grace | 13     |',
+  ].map((line) => {
+    const cells = line.slice(2, -2).split(' | ');
+    return `| ${order.map((i) => cells[i]).join(' | ')} |`;
+  });
+
+const sources: Record<string, Line[]> = {
+  paste: [
+    { text: '# Q4 roadmap' },
+    { text: '' },
+    { text: 'Pulled from the planning sheet:' },
+    { text: '' },
+    ...tableLines([0, 1, 2]).map((text) => ({ text, id: 'pasted', hidden: true })),
+  ],
+  table: [
+    { text: '# Q4 roadmap' },
+    { text: '' },
+    ...tableLines([0, 1, 2]).map((text, i) => ({ text, id: `row-${i}` })),
+    { text: '| Search         | Ada   | 3      |', id: 'row-new', hidden: true },
+  ],
+  slash: [
+    { text: '# Release notes' },
+    { text: '' },
+    { text: 'Version 0.2 ships tables and an outline.' },
+    { text: '', id: 'gap', hidden: true },
+    { text: '> [!TIP]', id: 'tip', hidden: true },
+    { text: '> ', id: 'tip-text', hidden: true },
+  ],
+  diff: [
+    { text: '# Release checklist' },
+    { text: '' },
+    { text: '## Before the release' },
+    { text: '' },
+    { text: '- [x] Freeze the feature list' },
+    { text: '- [x] Update the changelog' },
+    { text: '- [ ] Record the demo video', id: 'todo' },
+  ],
+};
+
+// The table rows after the drag (Points before Owner).
+const reordered = tableLines([0, 2, 1]);
+
+const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** Dims Markdown syntax (#, >, |, list markers, delimiter rows), like the hero mock. */
+function md(text: string): string {
+  if (/^\|[\s:|-]+\|$/.test(text)) return `<span class="m">${escape(text)}</span>`;
+  if (text.startsWith('|')) return escape(text).replace(/\|/g, '<span class="m">|</span>');
+  const marker = /^(#{1,6} |&gt; \[!\w+\]|&gt; ?|- \[[ x]\] )/;
+  return escape(text).replace(marker, '<span class="m">$1</span>');
+}
+
+// One string: inside <pre>, whitespace from template formatting would become blank lines.
+const lineHtml = (text: string) => `<span class="line">${md(text)}</span>`;
+const outlineHtml = [
+  lineHtml('# Architecture'),
+  lineHtml(''),
+  ...sections.map((s) => `<span class="block" data-key="${s.key}">${[`## ${s.title}`, s.text, ''].map(lineHtml).join('')}</span>`),
+].join('');
+---
+
+<section class="section showcase" id="see-it-work">
+  <div class="container">
+    <div class="head">
+      <p class="eyebrow">See it work</p>
+      <h2 class="section-title">Edit the page.<br />Get clean Markdown.</h2>
+      <p class="lead">On the left, what you do in MDotion. On the right, what lands in the file.</p>
+    </div>
+
+    <div class="player">
+      <div class="tabs" role="tablist" aria-label="Demos">
+        {
+          scenes.map((s, i) => (
+            <button
+              type="button"
+              role="tab"
+              class="tab"
+              id={`tab-${s.id}`}
+              aria-controls={`scene-${s.id}`}
+              aria-selected={i === 0 ? 'true' : 'false'}
+              data-scene={s.id}
+              data-duration={s.duration}
+              data-body={s.body}
+              style={`--duration: ${s.duration}ms`}
+            >
+              {s.title}
+              <span class="tab-progress" aria-hidden="true">
+                <span />
+              </span>
+            </button>
+          ))
+        }
+      </div>
+
+      <div class="window editor-palette">
+        <!-- 1. Paste a spreadsheet -->
+        <div class="scene scene-paste" id="scene-paste" role="tabpanel" aria-labelledby="tab-paste" data-step="0">
+          <div class="pane visual">
+            <div class="page">
+              <h3 class="title">Q4 roadmap</h3>
+              <p>Pulled from the planning sheet:</p>
+              <div class="paste-slot">
+                <span class="caret" aria-hidden="true"></span>
+                <table class="table" aria-label="Pasted table">
+                  {
+                    sheet.map((row, r) => (
+                      <tr style={`--row: ${r}`}>
+                        {row.map((cell, c) =>
+                          r === 0 ? <th class:list={{ num: c === 2 }}>{cell}</th> : <td class:list={{ num: c === 2 }}>{cell}</td>,
+                        )}
+                      </tr>
+                    ))
+                  }
+                </table>
+              </div>
+            </div>
+
+            <div class="sheet" aria-hidden="true">
+              <div class="sheet-bar">
+                <span class="sheet-icon"></span>
+                Planning · Sheet1
+              </div>
+              <div class="sheet-grid">
+                <span class="corner"></span>
+                {['A', 'B', 'C'].map((c) => <span class="col-head">{c}</span>)}
+                {
+                  sheet.map((row, r) => (
+                    <>
+                      <span class="row-head">{r + 1}</span>
+                      {row.map((cell, c) => (
+                        <span class:list={['cell', { bold: r === 0, num: c === 2 && r > 0 }]}>{cell}</span>
+                      ))}
+                    </>
+                  ))
+                }
+                <span class="sheet-selection"></span>
+              </div>
+            </div>
+
+            <kbd class="key key-copy" aria-hidden="true">⌘C</kbd>
+            <kbd class="key key-paste" aria-hidden="true">⌘V</kbd>
+          </div>
+
+          <div class="pane source" aria-label="roadmap.md">
+            <div class="source-bar"><span>roadmap.md</span><span class="status">+5 lines</span></div>
+            <pre class="code">{sources.paste.map((l) => <span class="line" data-id={l.id} hidden={l.hidden} set:html={md(l.text)} />)}</pre>
+          </div>
+        </div>
+
+        <!-- 2. Edit tables -->
+        <div class="scene scene-table" id="scene-table" role="tabpanel" aria-labelledby="tab-table" data-step="0" hidden>
+          <div class="pane visual">
+            <div class="page">
+              <h3 class="title">Q4 roadmap</h3>
+              <div class="edit-wrap">
+                <table class="table edit-table" aria-label="Table being edited">
+                  {
+                    sheet.map((row, r) => (
+                      <tr>
+                        {row.map((cell, c) =>
+                          r === 0 ? (
+                            <th data-col={columns[c]} class:list={{ num: c === 2 }}>
+                              {cell}
+                            </th>
+                          ) : (
+                            <td data-col={columns[c]} class:list={{ num: c === 2 }}>
+                              {cell}
+                            </td>
+                          ),
+                        )}
+                      </tr>
+                    ))
+                  }
+                  <tr class="new-row">
+                    <td data-col="feature"><span class="typed" data-text="Search"></span></td>
+                    <td data-col="owner"><span class="typed" data-text="Ada"></span></td>
+                    <td data-col="points" class="num"><span class="typed" data-text="3"></span></td>
+                  </tr>
+                </table>
+                <span class="grow-bar" aria-hidden="true">+</span>
+                <span class="col-grip" aria-hidden="true">···</span>
+                <span class="col-drop" aria-hidden="true"></span>
+              </div>
+            </div>
+            <span class="pointer" aria-hidden="true">
+              <svg width="18" height="22" viewBox="0 0 18 22">
+                <path d="M1.5 1.5v16.2l4.3-4.1 2.9 6.6 2.9-1.3-2.9-6.5h6z" fill="#0f1419" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <kbd class="key key-tab" aria-hidden="true">Tab</kbd>
+          </div>
+
+          <div class="pane source" aria-label="roadmap.md">
+            <div class="source-bar"><span>roadmap.md</span><span class="status">Still lined up</span></div>
+            <pre class="code">{
+              sources.table.map((l, i) => (
+                <span
+                  class="line"
+                  data-id={l.id}
+                  data-moved={l.id?.startsWith('row-') && l.id !== 'row-new' ? md(reordered[i - 2]) : undefined}
+                  hidden={l.hidden}
+                  set:html={md(l.text)}
+                />
+              ))
+            }<span class="line" data-id="row-new-moved" hidden set:html={md('| Search         | 3      | Ada   |')} /></pre>
+          </div>
+        </div>
+
+        <!-- 3. Move sections with the outline -->
+        <div class="scene scene-outline" id="scene-outline" role="tabpanel" aria-labelledby="tab-outline" data-step="0" hidden>
+          <div class="pane visual outline-visual">
+            <div class="page">
+              <h3 class="title">Architecture</h3>
+              <div class="sections">
+                {
+                  sections.map((s) => (
+                    <div class="sec" data-key={s.key}>
+                      <h4>{s.title}</h4>
+                      <p>{s.text}</p>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+
+            <aside class="outline" aria-label="Outline">
+              <span class="outline-title">Outline</span>
+              <span class="item root">Architecture</span>
+              <div class="items">
+                {
+                  sections.map((s) => (
+                    <span class="item" data-key={s.key}>
+                      {s.title}
+                    </span>
+                  ))
+                }
+              </div>
+              <span class="drop-line" aria-hidden="true"></span>
+            </aside>
+
+            <span class="pointer" aria-hidden="true">
+              <svg width="18" height="22" viewBox="0 0 18 22">
+                <path d="M1.5 1.5v16.2l4.3-4.1 2.9 6.6 2.9-1.3-2.9-6.5h6z" fill="#0f1419" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" />
+              </svg>
+            </span>
+          </div>
+
+          <div class="pane source" aria-label="architecture.md">
+            <div class="source-bar"><span>architecture.md</span><span class="status">3 lines moved · nothing rewritten</span></div>
+            <pre class="code" set:html={outlineHtml} />
+          </div>
+        </div>
+
+        <!-- 4. Slash menu -->
+        <div class="scene scene-slash" id="scene-slash" role="tabpanel" aria-labelledby="tab-slash" data-step="0" hidden>
+          <div class="pane visual">
+            <div class="page">
+              <h3 class="title">Release notes</h3>
+              <p>Version 0.2 ships tables and an outline.</p>
+              <p class="typing"><span class="typed" data-text="/cal"></span><span class="caret" aria-hidden="true"></span></p>
+              <div class="callout">
+                <span aria-hidden="true">💡</span>
+                <p><span class="typed" data-text="Ship it on Friday, after the review."></span><span class="caret" aria-hidden="true"></span></p>
+              </div>
+            </div>
+
+            <div class="menu" aria-hidden="true">
+              <span class="menu-section">Basic blocks</span>
+              {
+                blocks.map((b) => (
+                  <span class="menu-item" data-match={b.title === 'Callout' ? 'true' : 'false'}>
+                    <span class="menu-icon">{b.icon}</span>
+                    <span class="menu-text">
+                      <span class="menu-title">{b.title}</span>
+                      <span class="menu-desc">{b.desc}</span>
+                    </span>
+                  </span>
+                ))
+              }
+            </div>
+          </div>
+
+          <div class="pane source" aria-label="release-notes.md">
+            <div class="source-bar"><span>release-notes.md</span><span class="status">A GitHub alert</span></div>
+            <pre class="code">{sources.slash.map((l) => <span class="line" data-id={l.id} hidden={l.hidden} set:html={md(l.text)} />)}</pre>
+          </div>
+        </div>
+
+        <!-- 5. Clean diffs -->
+        <div class="scene scene-diff" id="scene-diff" role="tabpanel" aria-labelledby="tab-diff" data-step="0" hidden>
+          <div class="pane visual">
+            <div class="page">
+              <h3 class="title">Release checklist</h3>
+              <h4 class="subtitle">Before the release</h4>
+              <ul class="todos">
+                {
+                  todos.map((t) => (
+                    <li data-done={t.done ? '' : undefined} data-target={t.done ? undefined : ''}>
+                      <span class="box" aria-hidden="true"></span>
+                      <span>{t.text}</span>
+                    </li>
+                  ))
+                }
+              </ul>
+            </div>
+            <span class="pointer" aria-hidden="true">
+              <svg width="18" height="22" viewBox="0 0 18 22">
+                <path d="M1.5 1.5v16.2l4.3-4.1 2.9 6.6 2.9-1.3-2.9-6.5h6z" fill="#0f1419" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" />
+              </svg>
+            </span>
+          </div>
+
+          <div class="pane source" aria-label="release.md">
+            <div class="source-bar"><span>release.md</span><span class="status">1 line changed · the rest byte for byte</span></div>
+            <pre class="code">{
+              sources.diff.map((l) => (
+                <span class="line" data-id={l.id} data-checked={l.id ? md('- [x] Record the demo video') : undefined} set:html={md(l.text)} />
+              ))
+            }</pre>
+          </div>
+        </div>
+      </div>
+
+      <p class="caption">{scenes[0].body}</p>
+    </div>
+  </div>
+</section>
+
+<style>
+  .showcase {
+    padding-top: clamp(80px, 11vw, 144px);
+  }
+
+  .head {
+    max-width: 600px;
+  }
+
+  .head .section-title {
+    margin-top: 12px;
+  }
+
+  .head .lead {
+    margin-top: 16px;
+  }
+
+  .player {
+    margin-top: clamp(32px, 5vw, 48px);
+  }
+
+  /* Tabs: one row above the window, with the progress of the playing scene. */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+
+  .tab {
+    position: relative;
+    flex: none;
+    height: 36px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    font: inherit;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color 150ms ease,
+      color 150ms ease,
+      transform 160ms var(--ease-out);
+  }
+
+  .tab:active {
+    transform: scale(0.97);
+  }
+
+  .tab[aria-selected='true'] {
+    background: var(--bg-subtle);
+    color: var(--ink);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .tab:hover {
+      color: var(--ink);
+    }
+  }
+
+  .tab-progress {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: 5px;
+    height: 2px;
+    overflow: hidden;
+    border-radius: 1px;
+    opacity: 0;
+    transition: opacity 150ms ease;
+  }
+
+  .tab-progress span {
+    display: block;
+    height: 100%;
+    background: var(--text-tertiary);
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+
+  .player[data-playing] .tab[aria-selected='true'] .tab-progress {
+    opacity: 1;
+  }
+
+  .player[data-playing] .tab[aria-selected='true'] .tab-progress span {
+    animation: progress var(--duration) linear forwards;
+  }
+
+  @keyframes progress {
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  .caption {
+    max-width: 640px;
+    margin-top: 16px;
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+  }
+
+  /* Window: the visual editor and the Markdown file side by side. */
+  .window {
+    --gutter-added: #2ea043;
+    --gutter-modified: #2090d3;
+
+    display: grid;
+    overflow: hidden;
+    border-radius: 14px;
+    background: var(--e-bg);
+    color: var(--e-text);
+    box-shadow: var(--surface-shadow-lg);
+    text-align: left;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .window {
+      --gutter-added: #3fb950;
+      --gutter-modified: #1b81a8;
+    }
+  }
+
+  .scene {
+    grid-area: 1 / 1;
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    height: 340px;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  /* Scene layouts set `display`, which would override the hidden attribute. */
+  .scene[hidden] {
+    display: none;
+  }
+
+  .scene:not([hidden]) {
+    animation: scene-in 240ms var(--ease-out);
+  }
+
+  @keyframes scene-in {
+    from {
+      opacity: 0;
+      filter: blur(3px);
+    }
+  }
+
+  .pane {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .page {
+    padding: 28px 36px;
+  }
+
+  .page p {
+    margin: 0;
+  }
+
+  .title {
+    margin: 0 0 8px;
+    font-size: 1.75rem;
+    line-height: 1.2;
+    font-weight: 700;
+    color: inherit;
+  }
+
+  .caret {
+    display: inline-block;
+    width: 1.5px;
+    height: 1.15em;
+    margin-left: 1px;
+    vertical-align: text-bottom;
+    background: var(--e-text);
+    animation: blink 1s steps(1) infinite;
+  }
+
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  /* Markdown source, like the IDE's text editor next to MDotion. */
+  .source {
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--e-divider);
+    background: var(--e-code-bg);
+  }
+
+  .source-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 44px;
+    padding: 0 16px;
+    font-size: 0.8125rem;
+    color: var(--e-text-2);
+  }
+
+  .status {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--diff-add-bg);
+    color: var(--diff-add-text);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(2px);
+    transition:
+      opacity 200ms var(--ease-out),
+      transform 200ms var(--ease-out);
+  }
+
+  .scene[data-done] .status {
+    opacity: 1;
+    transform: none;
+  }
+
+  .code {
+    flex: 1;
+    margin: 0;
+    padding: 0 0 16px;
+    overflow: hidden;
+    counter-reset: line;
+    font-family: var(--font-code);
+    font-size: 0.75rem;
+    line-height: 1.75;
+  }
+
+  .code :global(.block) {
+    display: block;
+  }
+
+  .code :global(.line) {
+    position: relative;
+    display: block;
+    min-height: 1.75em;
+    padding-left: 52px;
+    padding-right: 12px;
+    white-space: pre;
+    transition: background-color 600ms ease;
+  }
+
+  .code :global(.line[hidden]) {
+    display: none;
+  }
+
+  .code :global(.line)::before {
+    counter-increment: line;
+    content: counter(line);
+    position: absolute;
+    left: 0;
+    width: 34px;
+    text-align: right;
+    color: var(--e-text-3);
+  }
+
+  /* VS Code's gutter markers: added (green) and modified (blue) lines. */
+  .code :global(.line)::after {
+    content: '';
+    position: absolute;
+    left: 42px;
+    top: 3px;
+    bottom: 3px;
+    width: 3px;
+    border-radius: 1px;
+    background: transparent;
+  }
+
+  .code :global(.line[data-mark='added'])::after {
+    background: var(--gutter-added);
+  }
+
+  .code :global(.line[data-mark='modified'])::after {
+    background: var(--gutter-modified);
+  }
+
+  .code :global(.line[data-flash]) {
+    background: var(--e-selection);
+    transition: none;
+  }
+
+  .code :global(.line[data-new]) {
+    animation: line-in 260ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 50ms);
+  }
+
+  @keyframes line-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+
+  .code :global(.m) {
+    color: var(--e-text-3);
+  }
+
+  /* The pointer acting on the page. Scenes move it with --x / --y. */
+  .pointer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 3;
+    opacity: 0;
+    transform: translate(var(--x, 60%), var(--y, 80%));
+    transition:
+      transform 650ms var(--ease-in-out),
+      opacity 200ms ease;
+    pointer-events: none;
+  }
+
+  .pointer svg {
+    transition: transform 120ms var(--ease-out);
+  }
+
+  .scene[data-pointer] .pointer {
+    opacity: 1;
+  }
+
+  .scene[data-press] .pointer svg {
+    transform: scale(0.88);
+  }
+
+  .key {
+    position: absolute;
+    padding: 4px 9px;
+    border-radius: 7px;
+    background: var(--e-popover);
+    box-shadow: var(--e-popover-shadow);
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--e-text);
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+    transition:
+      opacity 180ms var(--ease-out),
+      transform 180ms var(--ease-out);
+  }
+
+  /* Tables, as the editor draws them. Borders belong to the cells (not a
+     collapsed table), so a row that appears brings its own borders. */
+  .table {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.875rem;
+  }
+
+  .table th,
+  .table td {
+    padding: 5px 10px;
+    border-right: 1px solid var(--e-divider-strong);
+    border-bottom: 1px solid var(--e-divider-strong);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .table tr:first-child > * {
+    border-top: 1px solid var(--e-divider-strong);
+  }
+
+  .table tr > :first-child {
+    border-left: 1px solid var(--e-divider-strong);
+  }
+
+  .table th {
+    background: var(--e-table-header);
+    font-weight: 500;
+  }
+
+  .table .num {
+    text-align: right;
+  }
+
+  /* ---- Scene 1: paste a spreadsheet ---- */
+  .paste-slot {
+    position: relative;
+    min-height: 26px;
+    margin-top: 12px;
+  }
+
+  .scene-paste .caret {
+    position: absolute;
+    top: 3px;
+    left: 0;
+  }
+
+  .scene-paste .table tr {
+    opacity: 0;
+    transform: translateY(6px);
+    transition:
+      opacity 220ms var(--ease-out),
+      transform 220ms var(--ease-out);
+    transition-delay: calc(var(--row) * 60ms);
+  }
+
+  .sheet {
+    position: absolute;
+    top: 112px;
+    right: 28px;
+    width: 300px;
+    overflow: hidden;
+    border-radius: 10px;
+    background: var(--e-popover);
+    box-shadow: var(--e-popover-shadow);
+    font-size: 0.75rem;
+    transition:
+      opacity 300ms var(--ease-out),
+      transform 300ms var(--ease-out);
+  }
+
+  .sheet-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--e-divider);
+    color: var(--e-text-2);
+  }
+
+  .sheet-icon {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: #1e8e3e;
+  }
+
+  .sheet-grid {
+    position: relative;
+    display: grid;
+    grid-template-columns: 24px 1.6fr 1fr 0.8fr;
+  }
+
+  .sheet-grid > span {
+    padding: 4px 6px;
+    border-right: 1px solid var(--e-divider);
+    border-bottom: 1px solid var(--e-divider);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .corner,
+  .col-head,
+  .row-head {
+    background: var(--e-table-header);
+    color: var(--e-text-3);
+    text-align: center;
+  }
+
+  .cell.bold {
+    font-weight: 600;
+  }
+
+  .cell.num {
+    text-align: right;
+  }
+
+  /* Selection over A1:C4, revealed from the first cell like a drag. */
+  .sheet-grid > .sheet-selection {
+    position: absolute;
+    top: calc(100% / 5);
+    left: 24px;
+    right: 0;
+    bottom: 0;
+    padding: 0;
+    border: 2px solid #1a73e8;
+    border-radius: 2px;
+    background: rgba(26, 115, 232, 0.1);
+    clip-path: inset(0 100% 100% 0);
+    transition: clip-path 600ms var(--ease-in-out);
+  }
+
+  .key-copy {
+    top: 72px;
+    right: 40px;
+  }
+
+  .key-paste {
+    top: 112px;
+    left: 52px;
+  }
+
+  .scene-paste:not([data-step='0']) .sheet-selection {
+    clip-path: inset(0 0 0 0);
+  }
+
+  .scene-paste[data-step='2'] .key-copy,
+  .scene-paste[data-step='3'] .key-paste {
+    opacity: 1;
+    transform: none;
+  }
+
+  .scene-paste[data-step='4'] .sheet {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+
+  .scene-paste[data-step='4'] .caret {
+    visibility: hidden;
+  }
+
+  .scene-paste[data-step='4'] .table tr {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* ---- Scene 2: edit tables ---- */
+  .edit-wrap {
+    position: relative;
+    display: inline-block;
+    margin-top: 12px;
+    padding-bottom: 22px;
+  }
+
+  .edit-table th,
+  .edit-table td {
+    transition: transform 420ms var(--ease-in-out);
+  }
+
+  .edit-table .new-row {
+    display: none;
+  }
+
+  .scene-table[data-rows] .new-row {
+    display: table-row;
+    animation: row-in 220ms var(--ease-out);
+  }
+
+  @keyframes row-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+
+  .edit-table .typed:empty::after {
+    content: '\200b';
+  }
+
+  .grow-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 2px;
+    display: grid;
+    place-items: center;
+    height: 16px;
+    border-radius: 4px;
+    background: var(--e-hover);
+    color: var(--e-text-3);
+    font-size: 0.75rem;
+    line-height: 1;
+    opacity: 0;
+    transition:
+      opacity 150ms ease,
+      background-color 150ms ease;
+  }
+
+  .scene-table[data-step='1'] .grow-bar,
+  .scene-table[data-step='2'] .grow-bar {
+    opacity: 1;
+  }
+
+  .scene-table[data-step='2'] .grow-bar {
+    background: var(--e-divider-strong);
+  }
+
+  .col-grip {
+    position: absolute;
+    top: -7px;
+    left: 0;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 14px;
+    border-radius: 4px;
+    background: var(--e-popover);
+    box-shadow: 0 0 0 1px var(--e-divider-strong);
+    color: var(--e-text-3);
+    font-size: 0.625rem;
+    line-height: 1;
+    opacity: 0;
+    transform: translateX(var(--grip-x, 0));
+    transition:
+      opacity 150ms ease,
+      transform 420ms var(--ease-in-out);
+  }
+
+  .scene-table[data-grip] .col-grip {
+    opacity: 1;
+  }
+
+  .scene-table[data-press] .col-grip {
+    background: var(--e-accent);
+    box-shadow: none;
+    color: #fff;
+  }
+
+  .col-drop {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: var(--drop-h, 100%);
+    border-radius: 1px;
+    background: var(--e-accent);
+    opacity: 0;
+    transform: translateX(var(--drop-x, 0));
+    transition: opacity 120ms ease;
+  }
+
+  .scene-table[data-dragging] .col-drop {
+    opacity: 1;
+  }
+
+  .scene-table[data-dragging] [data-col='points'] {
+    position: relative;
+    z-index: 1;
+    background: var(--e-bg);
+    box-shadow: var(--e-popover-shadow);
+  }
+
+  .scene-table[data-dragging] th[data-col='points'] {
+    background: var(--e-table-header);
+  }
+
+  .key-tab {
+    top: 230px;
+    left: 236px;
+  }
+
+  .scene-table[data-tab] .key-tab {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* ---- Scene 3: move sections with the outline ---- */
+  .outline-visual {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 170px;
+  }
+
+  .sections {
+    display: grid;
+    gap: 6px;
+  }
+
+  .sec {
+    padding: 4px 8px;
+    margin-inline: -8px;
+    border-radius: 6px;
+    transition: background-color 600ms ease;
+  }
+
+  .sec h4 {
+    margin: 0;
+    font-size: 1.125rem;
+    line-height: 1.4;
+    font-weight: 700;
+    color: inherit;
+  }
+
+  .sec p {
+    color: var(--e-text-2);
+  }
+
+  .sec[data-flash] {
+    background: var(--e-selection);
+    transition: none;
+  }
+
+  .outline {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 28px 10px;
+    border-left: 1px solid var(--e-divider);
+    font-size: 0.8125rem;
+  }
+
+  .outline-title {
+    padding: 0 8px 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--e-text-2);
+  }
+
+  .items {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .item {
+    position: relative;
+    padding: 4px 8px 4px 22px;
+    border-radius: 6px;
+    color: var(--e-text-2);
+    white-space: nowrap;
+    background: var(--e-bg);
+    transition:
+      transform 420ms var(--ease-in-out),
+      box-shadow 150ms ease,
+      background-color 150ms ease;
+  }
+
+  .item.root {
+    padding-left: 8px;
+    color: var(--e-text);
+    font-weight: 500;
+  }
+
+  .item[data-lifted] {
+    z-index: 1;
+    background: var(--e-popover);
+    box-shadow: var(--e-popover-shadow);
+    color: var(--e-text);
+  }
+
+  .drop-line {
+    position: absolute;
+    left: 18px;
+    right: 10px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--e-accent);
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  .scene-outline[data-dragging] .drop-line {
+    opacity: 1;
+  }
+
+  /* ---- Scene 4: slash menu ---- */
+  .typing {
+    min-height: 1.5em;
+    margin-top: 10px !important;
+  }
+
+  .scene-slash .callout {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-radius: 4px;
+    background: var(--e-callout);
+    opacity: 0;
+    transform: scale(0.98);
+    transform-origin: top left;
+    transition:
+      opacity 220ms var(--ease-out),
+      transform 220ms var(--ease-out);
+  }
+
+  .scene-slash .callout .caret {
+    visibility: hidden;
+  }
+
+  .menu {
+    position: absolute;
+    top: 132px;
+    left: 36px;
+    width: 280px;
+    padding: 6px 0;
+    border-radius: 10px;
+    background: var(--e-popover);
+    box-shadow: var(--e-popover-shadow);
+    font-size: 0.8125rem;
+    opacity: 0;
+    transform: scale(0.97);
+    transform-origin: top left;
+    transition:
+      opacity 160ms var(--ease-out),
+      transform 160ms var(--ease-out);
+    pointer-events: none;
+  }
+
+  .menu-section {
+    display: block;
+    padding: 4px 12px 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--e-text-2);
+  }
+
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 4px;
+    padding: 4px 8px;
+    border-radius: 6px;
+  }
+
+  .menu-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 34px;
+    height: 34px;
+    border-radius: 5px;
+    background: var(--e-tile);
+    box-shadow: inset 0 0 0 1px var(--e-divider-strong);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--e-text-2);
+  }
+
+  .menu-text {
+    display: grid;
+  }
+
+  .menu-title {
+    color: var(--e-text);
+  }
+
+  .menu-desc {
+    font-size: 0.75rem;
+    color: var(--e-text-2);
+  }
+
+  /* Typing "/" opens the menu; "/cal" filters it down to Callout. */
+  .scene-slash[data-step='1'] .menu,
+  .scene-slash[data-step='2'] .menu {
+    opacity: 1;
+    transform: none;
+  }
+
+  .scene-slash[data-step='2'] .menu-item[data-match='false'] {
+    display: none;
+  }
+
+  .scene-slash[data-step='2'] .menu-item[data-match='true'] {
+    background: var(--e-hover);
+  }
+
+  .scene-slash[data-step='3'] .typing {
+    display: none;
+  }
+
+  .scene-slash[data-step='3'] .callout {
+    opacity: 1;
+    transform: none;
+  }
+
+  .scene-slash[data-step='3']:not([data-done]) .callout .caret {
+    visibility: visible;
+  }
+
+  /* ---- Scene 5: clean diffs ---- */
+  .subtitle {
+    margin: 18px 0 4px;
+    font-size: 1.25rem;
+    line-height: 1.3;
+    font-weight: 700;
+    color: inherit;
+  }
+
+  .todos {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .todos li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-block: 3px;
+  }
+
+  .box {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1.5px var(--e-text-2);
+    transition:
+      background-color 120ms ease,
+      box-shadow 120ms ease;
+  }
+
+  .todos li[data-done] .box,
+  .scene-diff[data-checked] li[data-target] .box {
+    background: var(--e-accent)
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.2 6.8 11 12 5.2' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      center / 14px no-repeat;
+    box-shadow: none;
+  }
+
+  .todos li[data-done] span:last-child,
+  .scene-diff[data-checked] li[data-target] span:last-child {
+    color: var(--e-text-3);
+    text-decoration: line-through;
+  }
+
+  /* Reduced motion: no autoplay; each scene shows its result. */
+  .player[data-static] .scene,
+  .player[data-static] .scene * {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  @media (max-width: 860px) {
+    /* Narrow windows and phones: the panes stack, the tabs scroll sideways. */
+    .tabs {
+      margin-inline: calc(var(--gutter) * -1);
+      padding-inline: var(--gutter);
+      overflow-x: auto;
+      scroll-snap-type: x proximity;
+      scrollbar-width: none;
+    }
+
+    .tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tab {
+      scroll-snap-align: start;
+    }
+
+    .scene {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: 300px 210px;
+      height: auto;
+    }
+
+    .source {
+      border-left: 0;
+      border-top: 1px solid var(--e-divider);
+    }
+
+    .source-bar {
+      height: 36px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .scene {
+      font-size: 0.875rem;
+    }
+
+    .page {
+      padding: 18px;
+    }
+
+    .title {
+      font-size: 1.375rem;
+    }
+
+    .table th,
+    .table td {
+      padding: 4px 8px;
+    }
+
+    .sheet {
+      top: auto;
+      bottom: 12px;
+      right: 12px;
+      left: 12px;
+      width: auto;
+    }
+
+    .key-copy {
+      top: 92px;
+      right: 18px;
+    }
+
+    .key-paste {
+      top: 92px;
+      left: 34px;
+    }
+
+    .key-tab {
+      top: 200px;
+      left: auto;
+      right: 18px;
+    }
+
+    .outline-visual {
+      grid-template-columns: minmax(0, 1fr) 128px;
+    }
+
+    .sec p {
+      display: none;
+    }
+
+    .outline {
+      padding: 18px 4px;
+    }
+
+    .item {
+      padding-left: 14px;
+    }
+
+    .menu {
+      top: 116px;
+      left: 18px;
+      width: min(260px, calc(100% - 36px));
+    }
+
+    .code {
+      font-size: 0.6875rem;
+    }
+
+    .code :global(.line) {
+      padding-left: 40px;
+    }
+
+    .code :global(.line)::before {
+      width: 24px;
+    }
+
+    .code :global(.line)::after {
+      left: 31px;
+    }
+
+    .status {
+      max-width: 62%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tab:active {
+      transform: none;
+    }
+  }
+</style>
+
+<script>
+  type At = (ms: number, run: () => void) => void;
+
+  type Scene = {
+    /** Schedules the scene from its first frame; the player tracks the timers. */
+    play: (at: At) => void;
+    /** Back to the first frame. */
+    reset: () => void;
+    /** The last frame, without motion (reduced motion). */
+    finish: () => void;
+  };
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)';
+
+  /** Boolean data attribute: `flag(el, 'done', true)` → `data-done`. */
+  function flag(el: HTMLElement, name: string, on: boolean): void {
+    el.toggleAttribute(`data-${name}`, on);
+  }
+
+  /** Types the element's `data-text` one character at a time; returns when it is done. */
+  function typeInto(at: At, el: HTMLElement, start: number, step: number, onType?: (text: string) => void): number {
+    const text = el.dataset.text ?? '';
+    for (let i = 1; i <= text.length; i += 1) {
+      at(start + i * step, () => {
+        el.textContent = text.slice(0, i);
+        onType?.(text.slice(0, i));
+      });
+    }
+    return start + text.length * step;
+  }
+
+  /** Animates elements from where they were to where a DOM change put them (FLIP). */
+  function flip(elements: HTMLElement[], change: () => void): void {
+    const before = new Map(elements.map((el) => [el, el.getBoundingClientRect()]));
+    change();
+    for (const el of elements) {
+      const was = before.get(el)!;
+      const now = el.getBoundingClientRect();
+      const dx = was.left - now.left;
+      const dy = was.top - now.top;
+      if (!dx && !dy) continue;
+      el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 420, easing: EASE_IN_OUT });
+    }
+  }
+
+  /** The Markdown pane of a scene: lines appear, change and get VS Code's gutter marks. */
+  function sourceOf(scene: HTMLElement) {
+    const code = scene.querySelector<HTMLElement>('.code')!;
+    const lines = (id: string) => [...code.querySelectorAll<HTMLElement>(`.line[data-id="${id}"]`)];
+    const initial = new Map([...code.querySelectorAll<HTMLElement>('.line')].map((l) => [l, { html: l.innerHTML, hidden: l.hidden }]));
+    const flash = (line: HTMLElement) => {
+      line.dataset.flash = '';
+      requestAnimationFrame(() => requestAnimationFrame(() => delete line.dataset.flash));
+    };
+    return {
+      code,
+      /** Shows hidden lines, one after the other, marked as added. */
+      add(id: string) {
+        lines(id).forEach((line, i) => {
+          line.hidden = false;
+          line.style.setProperty('--i', String(i));
+          line.dataset.new = '';
+          line.dataset.mark = 'added';
+        });
+      },
+      /** Replaces the content of lines (HTML highlighted on the server), marked as modified. */
+      change(id: string, html: (line: HTMLElement) => string) {
+        for (const line of lines(id)) {
+          line.innerHTML = html(line);
+          line.dataset.mark = 'modified';
+          flash(line);
+        }
+      },
+      mark(line: HTMLElement) {
+        line.dataset.mark = 'modified';
+        flash(line);
+      },
+      reset() {
+        for (const [line, state] of initial) {
+          line.innerHTML = state.html;
+          line.hidden = state.hidden;
+          delete line.dataset.mark;
+          delete line.dataset.new;
+          delete line.dataset.flash;
+        }
+      },
+    };
+  }
+
+  /** The scene's pointer: moves to an element (relative to its pane) and presses. */
+  function pointerOf(scene: HTMLElement) {
+    const pointer = scene.querySelector<HTMLElement>('.pointer')!;
+    const pane = pointer.parentElement!;
+    return {
+      to(el: Element, dx = 0, dy = 0) {
+        const box = pane.getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        pointer.style.setProperty('--x', `${r.left - box.left + Math.min(r.width / 2, 34) + dx}px`);
+        pointer.style.setProperty('--y', `${r.top - box.top + r.height / 2 - 4 + dy}px`);
+        flag(scene, 'pointer', true);
+      },
+      press: (on: boolean) => flag(scene, 'press', on),
+      /** Fades out where it is (moving it while it fades would look like a glitch). */
+      hide() {
+        flag(scene, 'pointer', false);
+        flag(scene, 'press', false);
+      },
+      reset() {
+        pointer.style.removeProperty('--x');
+        pointer.style.removeProperty('--y');
+        flag(scene, 'pointer', false);
+        flag(scene, 'press', false);
+      },
+    };
+  }
+
+  function pasteScene(root: HTMLElement): Scene {
+    const source = sourceOf(root);
+    const set = (step: number) => (root.dataset.step = String(step));
+    return {
+      play(at) {
+        at(700, () => set(1)); // select A1:C4
+        at(1600, () => set(2)); // ⌘C
+        at(2500, () => set(3)); // ⌘V at the caret
+        at(3100, () => {
+          set(4); // the table arrives, and lands in the file
+          source.add('pasted');
+        });
+        at(3700, () => flag(root, 'done', true));
+      },
+      reset() {
+        set(0);
+        source.reset();
+        flag(root, 'done', false);
+      },
+      finish() {
+        set(4);
+        source.add('pasted');
+        flag(root, 'done', true);
+      },
+    };
+  }
+
+  function tableScene(root: HTMLElement): Scene {
+    const table = root.querySelector<HTMLTableElement>('.edit-table')!;
+    const grow = root.querySelector<HTMLElement>('.grow-bar')!;
+    const grip = root.querySelector<HTMLElement>('.col-grip')!;
+    const drop = root.querySelector<HTMLElement>('.col-drop')!;
+    const typed = [...root.querySelectorAll<HTMLElement>('.new-row .typed')];
+    const pointer = pointerOf(root);
+    const source = sourceOf(root);
+    const rows = () => [...table.rows];
+    const cell = (row: HTMLTableRowElement, col: string) => row.querySelector<HTMLElement>(`[data-col="${col}"]`)!;
+    const set = (step: number) => (root.dataset.step = String(step));
+    const original = rows().map((row) => [...row.cells]);
+
+    /** Points moves before Owner in every row. */
+    const reorder = () => rows().forEach((row) => row.insertBefore(cell(row, 'points'), cell(row, 'owner')));
+    const restore = () => rows().forEach((row, r) => original[r].forEach((c) => row.appendChild(c)));
+    /** The file after the column move: every row in the new order, still padded. */
+    const moveColumnInSource = () => {
+      for (const id of ['row-0', 'row-1', 'row-2', 'row-3', 'row-4']) source.change(id, (line) => line.dataset.moved!);
+      source.code.querySelector<HTMLElement>('[data-id="row-new"]')!.hidden = true;
+      const moved = source.code.querySelector<HTMLElement>('[data-id="row-new-moved"]')!;
+      moved.hidden = false;
+      moved.dataset.mark = 'added';
+    };
+
+    return {
+      play(at) {
+        at(500, () => {
+          pointer.to(grow);
+          set(1);
+        });
+        at(1250, () => pointer.press(true));
+        at(1400, () => {
+          // A click on + adds a row and puts the caret in its first cell.
+          pointer.press(false);
+          set(2);
+          flag(root, 'rows', true);
+        });
+        at(1700, () => {
+          set(0);
+          pointer.hide();
+        });
+        let t = typeInto(at, typed[0], 1700, 70);
+        at(t + 150, () => flag(root, 'tab', true));
+        t = typeInto(at, typed[1], t + 350, 90);
+        at(t + 150, () => flag(root, 'tab', false));
+        t = typeInto(at, typed[2], t + 300, 90);
+        at(t + 250, () => source.add('row-new'));
+
+        const head = rows()[0];
+        at(t + 900, () => {
+          // The column grip appears over Points; the pointer takes it.
+          const points = cell(head, 'points');
+          grip.style.setProperty('--grip-x', `${points.offsetLeft + points.offsetWidth / 2 - 12}px`);
+          flag(root, 'grip', true);
+          // Aim at the header's top edge, where the grip sits (the grip itself may still be moving).
+          pointer.to(points, 0, -points.offsetHeight / 2);
+        });
+        at(t + 1600, () => pointer.press(true));
+        at(t + 1800, () => {
+          // Drag left: Points slides over Owner, which moves right to make room.
+          const owner = cell(head, 'owner');
+          const points = cell(head, 'points');
+          const left = owner.offsetLeft - points.offsetLeft;
+          for (const row of rows()) {
+            cell(row, 'points').style.transform = `translateX(${left}px)`;
+            cell(row, 'owner').style.transform = `translateX(${points.offsetWidth}px)`;
+          }
+          drop.style.setProperty('--drop-x', `${owner.offsetLeft - 1}px`);
+          drop.style.setProperty('--drop-h', `${table.offsetHeight}px`);
+          grip.style.setProperty('--grip-x', `${owner.offsetLeft + points.offsetWidth / 2 - 12}px`);
+          flag(root, 'dragging', true);
+          pointer.to(owner, 0, -owner.offsetHeight / 2);
+        });
+        at(t + 2600, () => {
+          // Drop: the cells already show their final place, so swap them without motion.
+          for (const row of rows()) {
+            for (const col of ['points', 'owner']) {
+              const el = cell(row, col);
+              el.style.transition = 'none';
+              el.style.transform = '';
+            }
+          }
+          reorder();
+          table.getBoundingClientRect();
+          for (const row of rows()) {
+            for (const col of ['points', 'owner']) cell(row, col).style.transition = '';
+          }
+          flag(root, 'dragging', false);
+          pointer.press(false);
+          moveColumnInSource();
+        });
+        at(t + 3000, () => {
+          flag(root, 'grip', false);
+          pointer.hide();
+        });
+        at(t + 3300, () => flag(root, 'done', true));
+      },
+      reset() {
+        for (const row of rows()) {
+          for (const c of row.cells) c.style.transform = '';
+        }
+        restore();
+        typed.forEach((el) => (el.textContent = ''));
+        for (const name of ['rows', 'tab', 'grip', 'dragging', 'done']) flag(root, name, false);
+        pointer.reset();
+        source.reset();
+        set(0);
+      },
+      finish() {
+        restore();
+        reorder();
+        typed.forEach((el) => (el.textContent = el.dataset.text ?? ''));
+        flag(root, 'rows', true);
+        moveColumnInSource();
+        flag(root, 'done', true);
+      },
+    };
+  }
+
+  function outlineScene(root: HTMLElement): Scene {
+    const items = root.querySelector<HTMLElement>('.items')!;
+    const sections = root.querySelector<HTMLElement>('.sections')!;
+    const dropLine = root.querySelector<HTMLElement>('.drop-line')!;
+    const pointer = pointerOf(root);
+    const source = sourceOf(root);
+    const item = (key: string) => items.querySelector<HTMLElement>(`[data-key="${key}"]`)!;
+    const section = (key: string) => sections.querySelector<HTMLElement>(`[data-key="${key}"]`)!;
+    const block = (key: string) => source.code.querySelector<HTMLElement>(`.block[data-key="${key}"]`)!;
+    const originalItems = [...items.children];
+    const originalSections = [...sections.children];
+    const originalCode = [...source.code.children];
+
+    const reorder = () => {
+      items.insertBefore(item('security'), item('components'));
+      sections.insertBefore(section('security'), section('components'));
+      source.code.insertBefore(block('security'), block('components'));
+    };
+
+    const restore = () => {
+      originalItems.forEach((el) => items.appendChild(el));
+      originalSections.forEach((el) => sections.appendChild(el));
+      originalCode.forEach((el) => source.code.appendChild(el));
+    };
+
+    const markMoved = () => {
+      for (const line of block('security').querySelectorAll<HTMLElement>('.line')) source.mark(line);
+    };
+
+    return {
+      play(at) {
+        const security = item('security');
+        const components = item('components');
+        at(500, () => pointer.to(security));
+        at(1400, () => {
+          pointer.press(true);
+          security.dataset.lifted = '';
+        });
+        at(1700, () => {
+          // The dragged item rises; the one it passes moves down to make room.
+          const lift = components.getBoundingClientRect().top - security.getBoundingClientRect().top;
+          dropLine.style.top = `${components.offsetTop + items.offsetTop - 2}px`;
+          security.style.transform = `translateY(${lift}px)`;
+          components.style.transform = `translateY(${security.offsetHeight + 2}px)`;
+          pointer.to(security, 0, lift);
+          flag(root, 'dragging', true);
+        });
+        at(2600, () => {
+          // Drop: both items already show their final place, so swap them in the
+          // DOM without motion; the page sections and the file's lines slide.
+          for (const el of [security, components]) {
+            el.style.transition = 'none';
+            el.style.transform = '';
+          }
+          const codeBlocks = [...source.code.querySelectorAll<HTMLElement>('.block')];
+          flip([...(sections.children as HTMLCollectionOf<HTMLElement>), ...codeBlocks], reorder);
+          security.getBoundingClientRect();
+          security.style.transition = '';
+          components.style.transition = '';
+          delete security.dataset.lifted;
+          section('security').dataset.flash = '';
+          markMoved();
+          flag(root, 'dragging', false);
+          pointer.press(false);
+        });
+        at(2700, () => delete section('security').dataset.flash);
+        at(3200, () => pointer.hide());
+        at(3300, () => flag(root, 'done', true));
+      },
+      reset() {
+        for (const key of ['security', 'components']) item(key).style.transform = '';
+        delete item('security').dataset.lifted;
+        restore();
+        source.reset();
+        pointer.reset();
+        flag(root, 'dragging', false);
+        flag(root, 'done', false);
+      },
+      finish() {
+        restore();
+        reorder();
+        markMoved();
+        flag(root, 'done', true);
+      },
+    };
+  }
+
+  function slashScene(root: HTMLElement): Scene {
+    const [command, callout] = root.querySelectorAll<HTMLElement>('.typed');
+    const source = sourceOf(root);
+    const tipText = source.code.querySelector<HTMLElement>('[data-id="tip-text"]')!;
+    const set = (step: number) => (root.dataset.step = String(step));
+    /** The callout text as it is typed, mirrored in the file. */
+    const mirror = (text: string) => {
+      tipText.innerHTML = `<span class="m">&gt;</span> ${text.replace(/&/g, '&amp;').replace(/</g, '&lt;')}`;
+    };
+    const showAlert = () => ['gap', 'tip', 'tip-text'].forEach((id) => source.add(id));
+    return {
+      play(at) {
+        at(600, () => {
+          command.textContent = '/';
+          set(1);
+        });
+        const typed = typeInto(at, command, 900, 200); // "/cal"
+        at(typed - 200, () => set(2));
+        at(typed + 600, () => {
+          set(3); // Enter: the callout, and its alert in the file
+          showAlert();
+        });
+        const done = typeInto(at, callout, typed + 900, 40, mirror);
+        at(done + 400, () => flag(root, 'done', true));
+      },
+      reset() {
+        command.textContent = '';
+        callout.textContent = '';
+        source.reset();
+        set(0);
+        flag(root, 'done', false);
+      },
+      finish() {
+        callout.textContent = callout.dataset.text ?? '';
+        set(3);
+        showAlert();
+        mirror(callout.dataset.text ?? '');
+        flag(root, 'done', true);
+      },
+    };
+  }
+
+  function diffScene(root: HTMLElement): Scene {
+    const target = root.querySelector<HTMLElement>('[data-target] .box')!;
+    const pointer = pointerOf(root);
+    const source = sourceOf(root);
+    const check = () => {
+      flag(root, 'checked', true);
+      source.change('todo', (line) => line.dataset.checked!);
+    };
+    return {
+      play(at) {
+        at(500, () => pointer.to(target, -2, 2));
+        at(1300, () => pointer.press(true));
+        at(1450, () => {
+          pointer.press(false);
+          check();
+        });
+        at(2000, () => pointer.hide());
+        at(2100, () => flag(root, 'done', true));
+      },
+      reset() {
+        pointer.reset();
+        source.reset();
+        flag(root, 'checked', false);
+        flag(root, 'done', false);
+      },
+      finish() {
+        check();
+        flag(root, 'done', true);
+      },
+    };
+  }
+
+  const builders: Record<string, (root: HTMLElement) => Scene> = {
+    paste: pasteScene,
+    table: tableScene,
+    outline: outlineScene,
+    slash: slashScene,
+    diff: diffScene,
+  };
+
+  for (const player of document.querySelectorAll<HTMLElement>('.player')) {
+    const tabList = player.querySelector<HTMLElement>('.tabs')!;
+    const tabs = [...player.querySelectorAll<HTMLButtonElement>('.tab')];
+    const caption = player.querySelector<HTMLElement>('.caption')!;
+    const scenes = new Map(
+      tabs.map((tab) => [tab.dataset.scene!, builders[tab.dataset.scene!](player.querySelector(`#scene-${tab.dataset.scene}`)!)]),
+    );
+    let current = 0;
+    let timers: number[] = [];
+    let visible = false;
+
+    const stop = () => {
+      timers.forEach(clearTimeout);
+      timers = [];
+      delete player.dataset.playing;
+    };
+
+    /** Keeps the active tab in view when the tab row scrolls sideways (phones), without scrolling the page. */
+    const revealTab = (tab: HTMLElement) => {
+      if (tabList.scrollWidth <= tabList.clientWidth) return;
+      tabList.scrollTo({ left: tab.offsetLeft - tabList.offsetLeft - 16, behavior: reduceMotion ? 'auto' : 'smooth' });
+    };
+
+    const select = (index: number) => {
+      stop();
+      current = index;
+      tabs.forEach((tab, i) => {
+        const on = i === index;
+        tab.setAttribute('aria-selected', String(on));
+        tab.tabIndex = on ? 0 : -1;
+        player.querySelector<HTMLElement>(`#${tab.getAttribute('aria-controls')}`)!.hidden = !on;
+        scenes.get(tab.dataset.scene!)!.reset();
+      });
+      caption.textContent = tabs[index].dataset.body ?? '';
+      revealTab(tabs[index]);
+      const scene = scenes.get(tabs[index].dataset.scene!)!;
+      if (reduceMotion) {
+        scene.finish();
+        return;
+      }
+      if (!visible) return;
+      // Restart the progress bar animation.
+      player.getBoundingClientRect();
+      player.dataset.playing = '';
+      scene.play((ms, run) => timers.push(window.setTimeout(run, ms)));
+      timers.push(window.setTimeout(() => select((index + 1) % tabs.length), Number(tabs[index].dataset.duration)));
+    };
+
+    tabs.forEach((tab, i) => {
+      tab.addEventListener('click', () => select(i));
+      tab.addEventListener('keydown', (event) => {
+        const keys: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+        if (!(event.key in keys)) return;
+        event.preventDefault();
+        const next = (i + keys[event.key] + tabs.length) % tabs.length;
+        tabs[next].focus();
+        select(next);
+      });
+    });
+
+    if (reduceMotion) {
+      player.dataset.static = '';
+      select(0);
+      continue;
+    }
+
+    // Play only while the demo is on screen; start the current scene over when it comes back.
+    new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting === visible) return;
+        visible = entry.isIntersecting;
+        if (visible) {
+          select(current);
+        } else {
+          stop();
+        }
+      },
+      { threshold: 0.4 },
+    ).observe(player.querySelector('.window')!);
+
+    select(0);
+  }
+</script>

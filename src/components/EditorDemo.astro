@@ -48,7 +48,7 @@ const sourceHtml = source
 ---
 
 <figure class="demo">
-  <div class="window" data-view="visual">
+  <div class="window editor-palette" data-view="visual">
     <div class="toolbar">
       <div class="file">
         <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
@@ -121,22 +121,7 @@ const sourceHtml = source
     margin: 0;
   }
 
-  /* Product palette, copied from the editor's own stylesheet. */
   .window {
-    --e-bg: #ffffff;
-    --e-text: rgb(55, 53, 47);
-    --e-text-2: rgba(55, 53, 47, 0.65);
-    --e-text-3: rgba(55, 53, 47, 0.45);
-    --e-divider: rgba(55, 53, 47, 0.09);
-    --e-hover: rgba(55, 53, 47, 0.08);
-    --e-accent: #2383e2;
-    --e-code-bg: rgb(247, 246, 243);
-    --e-inline-code: #eb5757;
-    --e-inline-code-bg: rgba(135, 131, 120, 0.15);
-    --e-callout: rgb(237, 243, 236);
-    --e-gutter-modified: #2090d3;
-    --e-tile: #ffffff;
-
     position: relative;
     overflow: hidden;
     border-radius: 14px;
@@ -144,22 +129,6 @@ const sourceHtml = source
     color: var(--e-text);
     box-shadow: var(--surface-shadow-lg);
     text-align: left;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .window {
-      --e-bg: #191919;
-      --e-text: rgba(255, 255, 255, 0.81);
-      --e-text-2: rgba(255, 255, 255, 0.46);
-      --e-text-3: rgba(255, 255, 255, 0.282);
-      --e-divider: rgba(255, 255, 255, 0.094);
-      --e-hover: rgba(255, 255, 255, 0.055);
-      --e-code-bg: rgb(32, 32, 32);
-      --e-inline-code: #ff7369;
-      --e-callout: rgb(36, 61, 48);
-      --e-gutter-modified: #1b81a8;
-      --e-tile: #2f2f2f;
-    }
   }
 
   /* Toolbar */

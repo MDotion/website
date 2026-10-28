@@ -192,6 +192,50 @@ kbd {
   padding-block: clamp(56px, 7vw, 96px);
 }
 
+/* Product palette, copied from the editor's own stylesheet: mocks of the
+   editor (hero, showcase) use it so they look like the real thing. */
+.editor-palette {
+  --e-bg: #ffffff;
+  --e-text: rgb(55, 53, 47);
+  --e-text-2: rgba(55, 53, 47, 0.65);
+  --e-text-3: rgba(55, 53, 47, 0.45);
+  --e-divider: rgba(55, 53, 47, 0.09);
+  --e-divider-strong: rgba(55, 53, 47, 0.16);
+  --e-hover: rgba(55, 53, 47, 0.08);
+  --e-accent: #2383e2;
+  --e-selection: rgba(35, 131, 226, 0.14);
+  --e-code-bg: rgb(247, 246, 243);
+  --e-inline-code: #eb5757;
+  --e-inline-code-bg: rgba(135, 131, 120, 0.15);
+  --e-callout: rgb(237, 243, 236);
+  --e-table-header: rgb(247, 246, 243);
+  --e-gutter-modified: #2090d3;
+  --e-tile: #ffffff;
+  --e-popover: #ffffff;
+  --e-popover-shadow: rgba(15, 15, 15, 0.05) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 3px 6px, rgba(15, 15, 15, 0.2) 0 9px 24px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .editor-palette {
+    --e-bg: #191919;
+    --e-text: rgba(255, 255, 255, 0.81);
+    --e-text-2: rgba(255, 255, 255, 0.46);
+    --e-text-3: rgba(255, 255, 255, 0.282);
+    --e-divider: rgba(255, 255, 255, 0.094);
+    --e-divider-strong: rgba(255, 255, 255, 0.13);
+    --e-hover: rgba(255, 255, 255, 0.055);
+    --e-selection: rgba(35, 131, 226, 0.2);
+    --e-code-bg: rgb(32, 32, 32);
+    --e-inline-code: #ff7369;
+    --e-callout: rgb(36, 61, 48);
+    --e-table-header: rgb(32, 32, 32);
+    --e-gutter-modified: #1b81a8;
+    --e-tile: #2f2f2f;
+    --e-popover: #252525;
+    --e-popover-shadow: rgba(255, 255, 255, 0.094) 0 0 0 1px, rgba(15, 15, 15, 0.2) 0 3px 6px, rgba(15, 15, 15, 0.4) 0 9px 24px;
+  }
+}
+
 /* Status badge: something that is on its way (e.g. a store listing in review). */
 .status {
   display: inline-flex;
