@@ -12,6 +12,13 @@ const scenes = [
     duration: 7600,
   },
   {
+    id: 'table',
+    file: 'roadmap.md',
+    title: 'Edit tables without the pipes',
+    body: 'Add rows, Tab between cells, drag columns. The Markdown stays lined up.',
+    duration: 8600,
+  },
+  {
     id: 'outline',
     file: 'architecture.md',
     title: 'Rearrange with the outline',
@@ -25,6 +32,13 @@ const scenes = [
     body: 'Callouts, to-dos, tables and code, saved as Markdown GitHub renders.',
     duration: 7200,
   },
+  {
+    id: 'diff',
+    file: 'release.md',
+    title: 'One edit, one line in the diff',
+    body: 'Only the blocks you touch are rewritten. Everything else is saved byte for byte.',
+    duration: 6600,
+  },
 ];
 
 const sheet = [
@@ -33,6 +47,8 @@ const sheet = [
   ['Notifications', 'Linus', '8'],
   ['Billing', 'Grace', '13'],
 ];
+
+const columns = ['feature', 'owner', 'points'] as const;
 
 const sections = [
   { key: 'overview', title: 'Overview', text: 'Four services behind a single gateway.' },
@@ -47,6 +63,12 @@ const blocks = [
   { icon: '💡', title: 'Callout', desc: 'Make writing stand out.' },
   { icon: '▦', title: 'Table', desc: 'Add a simple table.' },
 ];
+
+const todos = [
+  { text: 'Freeze the feature list', done: true },
+  { text: 'Update the changelog', done: true },
+  { text: 'Record the demo video', done: false },
+];
 ---
 
 <section class="section showcase" id="see-it-work">
@@ -54,7 +76,7 @@ const blocks = [
     <div class="head">
       <p class="eyebrow">See it work</p>
       <h2 class="section-title">Not a preview.<br />A page you work in.</h2>
-      <p class="lead">Three things you'll do in your first five minutes, and the Markdown each one writes.</p>
+      <p class="lead">What you'll do in your first five minutes, and the Markdown each one writes to disk.</p>
     </div>
 
     <div class="player">
@@ -152,7 +174,61 @@ const blocks = [
             </div>
           </div>
 
-          <!-- 2. Rearrange with the outline -->
+          <!-- 2. Edit tables -->
+          <div class="scene scene-table" id="scene-table" role="tabpanel" aria-labelledby="tab-table" data-step="0" hidden>
+            <div class="page">
+              <h3 class="title">Q4 roadmap</h3>
+              <p>Pulled from the planning sheet:</p>
+              <div class="edit-wrap">
+                <table class="table edit-table" aria-label="Table being edited">
+                  {
+                    sheet.map((row, r) => (
+                      <tr>
+                        {row.map((cell, c) =>
+                          r === 0 ? (
+                            <th data-col={columns[c]} class:list={{ num: c === 2 }}>
+                              {cell}
+                            </th>
+                          ) : (
+                            <td data-col={columns[c]} class:list={{ num: c === 2 }}>
+                              {cell}
+                            </td>
+                          ),
+                        )}
+                      </tr>
+                    ))
+                  }
+                  <tr class="new-row">
+                    <td data-col="feature"><span class="typed" data-text="Search"></span></td>
+                    <td data-col="owner"><span class="typed" data-text="Ada"></span></td>
+                    <td data-col="points" class="num"><span class="typed" data-text="3"></span></td>
+                  </tr>
+                </table>
+                <span class="grow-bar" aria-hidden="true">+</span>
+                <span class="col-grip" aria-hidden="true">···</span>
+                <span class="col-drop" aria-hidden="true"></span>
+              </div>
+            </div>
+
+            <span class="pointer" aria-hidden="true">
+              <svg width="18" height="22" viewBox="0 0 18 22">
+                <path d="M1.5 1.5v16.2l4.3-4.1 2.9 6.6 2.9-1.3-2.9-6.5h6z" fill="#0f1419" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <kbd class="key key-tab" aria-hidden="true">Tab</kbd>
+
+            <div class="peek" aria-label="Markdown written to roadmap.md">
+              <span class="peek-head">roadmap.md</span>
+              <pre><code><span class="m">|</span> Feature        <span class="m">|</span> Points <span class="m">|</span> Owner <span class="m">|</span>
+<span class="m">| -------------- | -----: | ----- |</span>
+<span class="m">|</span> Authentication <span class="m">|</span> 5      <span class="m">|</span> Ada   <span class="m">|</span>
+<span class="m">|</span> Notifications  <span class="m">|</span> 8      <span class="m">|</span> Linus <span class="m">|</span>
+<span class="m">|</span> Billing        <span class="m">|</span> 13     <span class="m">|</span> Grace <span class="m">|</span>
+<span class="m">|</span> Search         <span class="m">|</span> 3      <span class="m">|</span> Ada   <span class="m">|</span></code></pre>
+            </div>
+          </div>
+
+          <!-- 3. Rearrange with the outline -->
           <div class="scene scene-outline" id="scene-outline" role="tabpanel" aria-labelledby="tab-outline" data-step="0" hidden>
             <div class="page outline-page">
               <h3 class="title">Architecture</h3>
@@ -190,7 +266,7 @@ const blocks = [
             </span>
 
             <div class="peek peek-diff" aria-label="Git diff of architecture.md">
-              <span class="peek-head">architecture.md <span class="moved">4 lines moved · nothing rewritten</span></span>
+              <span class="peek-head">architecture.md <span class="pill">4 lines moved · nothing rewritten</span></span>
               <pre><code><span class="add">+ ## Security</span>
 <span class="add">+ Encrypted in transit. Secrets live…</span>
   ## Components
@@ -200,7 +276,7 @@ const blocks = [
             </div>
           </div>
 
-          <!-- 3. Slash menu -->
+          <!-- 4. Slash menu -->
           <div class="scene scene-slash" id="scene-slash" role="tabpanel" aria-labelledby="tab-slash" data-step="0" hidden>
             <div class="page">
               <h3 class="title">Release notes</h3>
@@ -233,6 +309,38 @@ const blocks = [
 <span class="m">&gt;</span> Ship it on Friday, after the review.</code></pre>
             </div>
           </div>
+
+          <!-- 5. One edit, one line in the diff -->
+          <div class="scene scene-diff" id="scene-diff" role="tabpanel" aria-labelledby="tab-diff" data-step="0" hidden>
+            <div class="page">
+              <h3 class="title">Release checklist</h3>
+              <h4 class="subtitle">Before the release</h4>
+              <ul class="todos">
+                {
+                  todos.map((t) => (
+                    <li data-done={t.done ? '' : undefined} data-target={t.done ? undefined : ''}>
+                      <span class="box" aria-hidden="true"></span>
+                      <span>{t.text}</span>
+                    </li>
+                  ))
+                }
+              </ul>
+            </div>
+
+            <span class="pointer" aria-hidden="true">
+              <svg width="18" height="22" viewBox="0 0 18 22">
+                <path d="M1.5 1.5v16.2l4.3-4.1 2.9 6.6 2.9-1.3-2.9-6.5h6z" fill="#0f1419" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" />
+              </svg>
+            </span>
+
+            <div class="peek peek-diff" aria-label="Git diff of release.md">
+              <span class="peek-head">docs/release.md <span class="pill">1 line changed · the rest byte for byte</span></span>
+              <pre><code>  - [x] Freeze the feature list
+  - [x] Update the changelog
+<span class="del">- - [ ] Record the demo video</span>
+<span class="add">+ - [x] Record the demo video</span></code></pre>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -240,6 +348,10 @@ const blocks = [
 </section>
 
 <style>
+  .showcase {
+    padding-top: clamp(80px, 11vw, 144px);
+  }
+
   .head {
     max-width: 600px;
   }
@@ -263,14 +375,14 @@ const blocks = [
   /* Tabs */
   .tabs {
     display: grid;
-    gap: 4px;
+    gap: 2px;
   }
 
   .tab {
     position: relative;
     display: grid;
     gap: 4px;
-    padding: 16px 18px 18px;
+    padding: 14px 18px 16px;
     border: 0;
     border-radius: 12px;
     background: transparent;
@@ -312,7 +424,7 @@ const blocks = [
     position: absolute;
     left: 18px;
     right: 18px;
-    bottom: 8px;
+    bottom: 7px;
     height: 2px;
     overflow: hidden;
     border-radius: 1px;
@@ -456,6 +568,32 @@ const blocks = [
     }
   }
 
+  /* A pointer acting on the page. Scenes move it with --x / --y. */
+  .pointer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 3;
+    opacity: 0;
+    transform: translate(var(--x, 60%), var(--y, 80%));
+    transition:
+      transform 650ms var(--ease-in-out),
+      opacity 200ms ease;
+    pointer-events: none;
+  }
+
+  .pointer svg {
+    transition: transform 120ms var(--ease-out);
+  }
+
+  .scene[data-pointer] .pointer {
+    opacity: 1;
+  }
+
+  .scene[data-press] .pointer svg {
+    transform: scale(0.88);
+  }
+
   /* Markdown peek: what the scene wrote to disk. */
   .peek {
     position: absolute;
@@ -472,6 +610,11 @@ const blocks = [
     transition:
       opacity 240ms var(--ease-out),
       transform 240ms var(--ease-out);
+  }
+
+  .scene[data-peek] .peek {
+    opacity: 1;
+    transform: none;
   }
 
   .peek-head {
@@ -501,6 +644,21 @@ const blocks = [
     color: var(--e-text-3);
   }
 
+  .peek-diff .add {
+    color: var(--diff-add-text);
+  }
+
+  .peek-diff .del {
+    color: var(--diff-del-text);
+  }
+
+  .pill {
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--diff-add-bg);
+    color: var(--diff-add-text);
+  }
+
   .key {
     position: absolute;
     padding: 4px 9px;
@@ -518,20 +676,8 @@ const blocks = [
       transform 180ms var(--ease-out);
   }
 
-  /* ---- Scene 1: paste a spreadsheet ---- */
-  .paste-slot {
-    position: relative;
-    min-height: 26px;
-    margin-top: 10px;
-  }
-
-  .scene-paste .caret {
-    position: absolute;
-    top: 3px;
-    left: 0;
-  }
-
-  /* Borders belong to the cells (not a collapsed table), so each row brings its own in. */
+  /* Tables, as the editor draws them. Borders belong to the cells (not a
+     collapsed table), so a row that appears brings its own borders. */
   .table {
     border-collapse: separate;
     border-spacing: 0;
@@ -564,7 +710,20 @@ const blocks = [
     text-align: right;
   }
 
-  .table tr {
+  /* ---- Scene 1: paste a spreadsheet ---- */
+  .paste-slot {
+    position: relative;
+    min-height: 26px;
+    margin-top: 10px;
+  }
+
+  .scene-paste .caret {
+    position: absolute;
+    top: 3px;
+    left: 0;
+  }
+
+  .scene-paste .table tr {
     opacity: 0;
     transform: translateY(6px);
     transition:
@@ -660,11 +819,7 @@ const blocks = [
     left: 52px;
   }
 
-  .scene-paste[data-step='1'] .sheet-selection,
-  .scene-paste[data-step='2'] .sheet-selection,
-  .scene-paste[data-step='3'] .sheet-selection,
-  .scene-paste[data-step='4'] .sheet-selection,
-  .scene-paste[data-step='5'] .sheet-selection {
+  .scene-paste:not([data-step='0']) .sheet-selection {
     clip-path: inset(0 0 0 0);
   }
 
@@ -674,29 +829,150 @@ const blocks = [
     transform: none;
   }
 
-  .scene-paste[data-step='4'] .sheet,
-  .scene-paste[data-step='5'] .sheet {
+  .scene-paste[data-step='4'] .sheet {
     opacity: 0;
     transform: translateY(-6px) scale(0.98);
   }
 
-  .scene-paste[data-step='4'] .caret,
-  .scene-paste[data-step='5'] .caret {
+  .scene-paste[data-step='4'] .caret {
     visibility: hidden;
   }
 
-  .scene-paste[data-step='4'] .table tr,
-  .scene-paste[data-step='5'] .table tr {
+  .scene-paste[data-step='4'] .table tr {
     opacity: 1;
     transform: none;
   }
 
-  .scene-paste[data-step='5'] .peek {
+  /* ---- Scene 2: edit tables ---- */
+  .edit-wrap {
+    position: relative;
+    display: inline-block;
+    margin-top: 10px;
+    padding-bottom: 22px;
+  }
+
+  .edit-table th,
+  .edit-table td {
+    transition: transform 420ms var(--ease-in-out);
+  }
+
+  .edit-table .new-row {
+    display: none;
+  }
+
+  .scene-table[data-rows] .new-row {
+    display: table-row;
+    animation: row-in 220ms var(--ease-out);
+  }
+
+  @keyframes row-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+
+  .edit-table .typed:empty::after {
+    content: '\200b';
+  }
+
+  .grow-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 2px;
+    display: grid;
+    place-items: center;
+    height: 16px;
+    border-radius: 4px;
+    background: var(--e-hover);
+    color: var(--e-text-3);
+    font-size: 0.75rem;
+    line-height: 1;
+    opacity: 0;
+    transition:
+      opacity 150ms ease,
+      background-color 150ms ease;
+  }
+
+  .scene-table[data-step='1'] .grow-bar,
+  .scene-table[data-step='2'] .grow-bar {
+    opacity: 1;
+  }
+
+  .scene-table[data-step='2'] .grow-bar {
+    background: var(--e-divider-strong);
+  }
+
+  .col-grip {
+    position: absolute;
+    top: -7px;
+    left: 0;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 14px;
+    border-radius: 4px;
+    background: var(--e-popover);
+    box-shadow: 0 0 0 1px var(--e-divider-strong);
+    color: var(--e-text-3);
+    font-size: 0.625rem;
+    line-height: 1;
+    opacity: 0;
+    transform: translateX(var(--grip-x, 0));
+    transition:
+      opacity 150ms ease,
+      transform 420ms var(--ease-in-out);
+  }
+
+  .scene-table[data-grip] .col-grip {
+    opacity: 1;
+  }
+
+  .scene-table[data-press] .col-grip {
+    background: var(--e-accent);
+    box-shadow: none;
+    color: #fff;
+  }
+
+  .col-drop {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: var(--drop-h, 100%);
+    border-radius: 1px;
+    background: var(--e-accent);
+    opacity: 0;
+    transform: translateX(var(--drop-x, 0));
+    transition: opacity 120ms ease;
+  }
+
+  .scene-table[data-dragging] .col-drop {
+    opacity: 1;
+  }
+
+  .scene-table[data-dragging] [data-col='points'] {
+    position: relative;
+    z-index: 1;
+    background: var(--e-bg);
+    box-shadow: var(--e-popover-shadow);
+  }
+
+  .scene-table[data-dragging] th[data-col='points'] {
+    background: var(--e-table-header);
+  }
+
+  .key-tab {
+    top: 232px;
+    left: 220px;
+  }
+
+  .scene-table[data-tab] .key-tab {
     opacity: 1;
     transform: none;
   }
 
-  /* ---- Scene 2: rearrange with the outline ---- */
+  /* ---- Scene 3: rearrange with the outline ---- */
   .scene-outline {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 190px;
@@ -792,64 +1068,15 @@ const blocks = [
     transition: opacity 120ms ease;
   }
 
-  .scene-outline[data-step='3'] .drop-line {
+  .scene-outline[data-dragging] .drop-line {
     opacity: 1;
-  }
-
-  .pointer {
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 3;
-    opacity: 0;
-    transform: translate(var(--x, 60%), var(--y, 80%));
-    transition:
-      transform 700ms var(--ease-in-out),
-      opacity 200ms ease;
-    pointer-events: none;
-  }
-
-  .scene-outline[data-step='1'] .pointer,
-  .scene-outline[data-step='2'] .pointer,
-  .scene-outline[data-step='3'] .pointer,
-  .scene-outline[data-step='4'] .pointer {
-    opacity: 1;
-  }
-
-  .scene-outline[data-step='2'] .pointer svg,
-  .scene-outline[data-step='3'] .pointer svg {
-    transform: scale(0.9);
-  }
-
-  .pointer svg {
-    transition: transform 120ms var(--ease-out);
-  }
-
-  .moved {
-    padding: 1px 7px;
-    border-radius: 999px;
-    background: var(--diff-add-bg);
-    color: var(--diff-add-text);
-  }
-
-  .peek-diff .add {
-    color: var(--diff-add-text);
-  }
-
-  .peek-diff .del {
-    color: var(--diff-del-text);
   }
 
   .scene-outline .peek {
     right: 206px;
   }
 
-  .scene-outline[data-step='5'] .peek {
-    opacity: 1;
-    transform: none;
-  }
-
-  /* ---- Scene 3: slash menu ---- */
+  /* ---- Scene 4: slash menu ---- */
   .typing {
     min-height: 1.5em;
     margin-top: 10px !important;
@@ -952,33 +1179,71 @@ const blocks = [
     background: var(--e-hover);
   }
 
-  .scene-slash[data-step='3'] .typing,
-  .scene-slash[data-step='4'] .typing {
+  .scene-slash[data-step='3'] .typing {
     display: none;
   }
 
-  .scene-slash[data-step='3'] .callout,
-  .scene-slash[data-step='4'] .callout {
+  .scene-slash[data-step='3'] .callout {
     opacity: 1;
     transform: none;
   }
 
-  .scene-slash[data-step='3'] .callout .caret {
+  .scene-slash[data-step='3']:not([data-peek]) .callout .caret {
     visibility: visible;
   }
 
-  .scene-slash[data-step='4'] .peek {
-    opacity: 1;
-    transform: none;
+  /* ---- Scene 5: one edit, one line in the diff ---- */
+  .subtitle {
+    margin: 18px 0 4px;
+    font-size: 1.25rem;
+    line-height: 1.3;
+    font-weight: 700;
+    color: inherit;
+  }
+
+  .todos {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .todos li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-block: 3px;
+  }
+
+  .box {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1.5px var(--e-text-2);
+    transition:
+      background-color 120ms ease,
+      box-shadow 120ms ease;
+  }
+
+  .todos li[data-done] .box,
+  .scene-diff[data-checked] li[data-target] .box {
+    background: var(--e-accent)
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.2 6.8 11 12 5.2' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      center / 14px no-repeat;
+    box-shadow: none;
+  }
+
+  .todos li[data-done] span:last-child,
+  .scene-diff[data-checked] li[data-target] span:last-child {
+    color: var(--e-text-3);
+    text-decoration: line-through;
   }
 
   /* Reduced motion: no autoplay; each scene shows its result. */
+  .player[data-static] .scene,
   .player[data-static] .scene * {
     transition: none !important;
-  }
-
-  .player[data-static] .caret {
-    animation: none;
+    animation: none !important;
   }
 
   @media (max-width: 860px) {
@@ -986,12 +1251,30 @@ const blocks = [
       grid-template-columns: minmax(0, 1fr);
     }
 
+    /* Five tabs: a row that scrolls sideways, titles only. */
     .tabs {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      display: flex;
+      gap: 4px;
+      margin-inline: calc(var(--gutter) * -1);
+      padding-inline: var(--gutter);
+      overflow-x: auto;
+      scroll-snap-type: x proximity;
+      scrollbar-width: none;
+    }
+
+    .tabs::-webkit-scrollbar {
+      display: none;
     }
 
     .tab {
-      padding: 12px 12px 16px;
+      flex: none;
+      padding: 10px 14px 14px;
+      scroll-snap-align: start;
+    }
+
+    .tab-title {
+      font-size: 0.875rem;
+      white-space: nowrap;
     }
 
     .tab-body {
@@ -999,14 +1282,15 @@ const blocks = [
     }
 
     .tab-progress {
-      left: 12px;
-      right: 12px;
+      left: 14px;
+      right: 14px;
+      bottom: 5px;
     }
   }
 
   @media (max-width: 640px) {
     .scene {
-      height: 400px;
+      height: 440px;
       font-size: 0.875rem;
     }
 
@@ -1016,6 +1300,11 @@ const blocks = [
 
     .title {
       font-size: 1.375rem;
+    }
+
+    .table th,
+    .table td {
+      padding: 4px 8px;
     }
 
     .sheet {
@@ -1034,7 +1323,13 @@ const blocks = [
 
     .key-paste {
       top: 112px;
-      left: 18px;
+      left: 34px;
+    }
+
+    .key-tab {
+      top: 210px;
+      left: auto;
+      right: 18px;
     }
 
     .scene-outline {
@@ -1054,12 +1349,8 @@ const blocks = [
       padding-left: 14px;
     }
 
+    .peek,
     .scene-outline .peek {
-      right: 12px;
-      left: 12px;
-    }
-
-    .peek {
       right: 12px;
       left: 12px;
       max-width: none;
@@ -1070,17 +1361,9 @@ const blocks = [
       left: 18px;
       width: min(260px, calc(100% - 36px));
     }
-
-    .tab-title {
-      font-size: 0.875rem;
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .scene:not([hidden]) {
-      animation: none;
-    }
-
     .tab:active {
       transform: none;
     }
@@ -1088,9 +1371,11 @@ const blocks = [
 </style>
 
 <script>
+  type At = (ms: number, run: () => void) => void;
+
   type Scene = {
-    /** Schedules the scene from its first step; returns nothing, timers are tracked by the player. */
-    play: (at: (ms: number, run: () => void) => void) => void;
+    /** Schedules the scene from its first frame; the player tracks the timers. */
+    play: (at: At) => void;
     /** Back to the first frame. */
     reset: () => void;
     /** The last frame, without motion (reduced motion). */
@@ -1098,9 +1383,15 @@ const blocks = [
   };
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)';
 
-  /** Types `text` into `el` one character at a time, starting at `start`. */
-  function typeInto(at: (ms: number, run: () => void) => void, el: HTMLElement, start: number, step: number): number {
+  /** Boolean data attribute: `flag(el, 'peek', true)` → `data-peek`. */
+  function flag(el: HTMLElement, name: string, on: boolean): void {
+    el.toggleAttribute(`data-${name}`, on);
+  }
+
+  /** Types the element's `data-text` one character at a time; returns when it is done. */
+  function typeInto(at: At, el: HTMLElement, start: number, step: number): number {
     const text = el.dataset.text ?? '';
     for (let i = 1; i <= text.length; i += 1) {
       at(start + i * step, () => (el.textContent = text.slice(0, i)));
@@ -1110,16 +1401,42 @@ const blocks = [
 
   /** Animates elements from where they were to where a DOM change put them (FLIP). */
   function flip(elements: HTMLElement[], change: () => void): void {
-    const before = new Map(elements.map((el) => [el, el.getBoundingClientRect().top]));
+    const before = new Map(elements.map((el) => [el, el.getBoundingClientRect()]));
     change();
     for (const el of elements) {
-      const delta = before.get(el)! - el.getBoundingClientRect().top;
-      if (!delta) continue;
-      el.animate([{ transform: `translateY(${delta}px)` }, { transform: 'none' }], {
-        duration: 420,
-        easing: 'cubic-bezier(0.77, 0, 0.175, 1)',
-      });
+      const was = before.get(el)!;
+      const now = el.getBoundingClientRect();
+      const dx = was.left - now.left;
+      const dy = was.top - now.top;
+      if (!dx && !dy) continue;
+      el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 420, easing: EASE_IN_OUT });
     }
+  }
+
+  /** The scene's pointer: moves to an element (relative to the scene) and presses. */
+  function pointerOf(scene: HTMLElement) {
+    const pointer = scene.querySelector<HTMLElement>('.pointer')!;
+    return {
+      to(el: Element, dx = 0, dy = 0) {
+        const box = scene.getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        pointer.style.setProperty('--x', `${r.left - box.left + Math.min(r.width / 2, 34) + dx}px`);
+        pointer.style.setProperty('--y', `${r.top - box.top + r.height / 2 - 4 + dy}px`);
+        flag(scene, 'pointer', true);
+      },
+      press: (on: boolean) => flag(scene, 'press', on),
+      /** Fades out where it is (moving it while it fades would look like a glitch). */
+      hide() {
+        flag(scene, 'pointer', false);
+        flag(scene, 'press', false);
+      },
+      reset() {
+        pointer.style.removeProperty('--x');
+        pointer.style.removeProperty('--y');
+        flag(scene, 'pointer', false);
+        flag(scene, 'press', false);
+      },
+    };
   }
 
   function pasteScene(root: HTMLElement): Scene {
@@ -1129,32 +1446,136 @@ const blocks = [
         at(700, () => set(1)); // select A1:C4
         at(1600, () => set(2)); // ⌘C
         at(2500, () => set(3)); // ⌘V at the caret
-        at(3100, () => set(4)); // the table appears
-        at(4300, () => set(5)); // the Markdown on disk
+        at(3100, () => set(4)); // the table arrives
+        at(4300, () => flag(root, 'peek', true)); // the Markdown on disk
       },
-      reset: () => set(0),
-      finish: () => set(5),
+      reset() {
+        set(0);
+        flag(root, 'peek', false);
+      },
+      finish() {
+        set(4);
+        flag(root, 'peek', true);
+      },
+    };
+  }
+
+  function tableScene(root: HTMLElement): Scene {
+    const table = root.querySelector<HTMLTableElement>('.edit-table')!;
+    const grow = root.querySelector<HTMLElement>('.grow-bar')!;
+    const grip = root.querySelector<HTMLElement>('.col-grip')!;
+    const drop = root.querySelector<HTMLElement>('.col-drop')!;
+    const typed = [...root.querySelectorAll<HTMLElement>('.new-row .typed')];
+    const pointer = pointerOf(root);
+    const rows = () => [...table.rows];
+    const cell = (row: HTMLTableRowElement, col: string) => row.querySelector<HTMLElement>(`[data-col="${col}"]`)!;
+    const set = (step: number) => (root.dataset.step = String(step));
+    const original = rows().map((row) => [...row.cells]);
+
+    /** Points moves before Owner in every row. */
+    const reorder = () => rows().forEach((row) => row.insertBefore(cell(row, 'points'), cell(row, 'owner')));
+    const restore = () => rows().forEach((row, r) => original[r].forEach((c) => row.appendChild(c)));
+
+    return {
+      play(at) {
+        at(500, () => {
+          pointer.to(grow);
+          set(1);
+        });
+        at(1250, () => pointer.press(true));
+        at(1400, () => {
+          // A click on + adds a row and puts the caret in its first cell.
+          pointer.press(false);
+          set(2);
+          flag(root, 'rows', true);
+        });
+        at(1700, () => {
+          set(0);
+          pointer.hide();
+        });
+        let t = typeInto(at, typed[0], 1700, 70);
+        at(t + 150, () => flag(root, 'tab', true));
+        t = typeInto(at, typed[1], t + 350, 90);
+        at(t + 150, () => flag(root, 'tab', false));
+        t = typeInto(at, typed[2], t + 300, 90);
+
+        const head = rows()[0];
+        at(t + 400, () => {
+          // The column grip appears over Points; the pointer takes it.
+          const points = cell(head, 'points');
+          grip.style.setProperty('--grip-x', `${points.offsetLeft + points.offsetWidth / 2 - 12}px`);
+          flag(root, 'grip', true);
+          // Aim at the header's top edge, where the grip sits (the grip itself may still be moving).
+          pointer.to(points, 0, -points.offsetHeight / 2);
+        });
+        at(t + 1100, () => pointer.press(true));
+        at(t + 1300, () => {
+          // Drag left: Points slides over Owner, which moves right to make room.
+          const owner = cell(head, 'owner');
+          const points = cell(head, 'points');
+          const left = owner.offsetLeft - points.offsetLeft;
+          for (const row of rows()) {
+            cell(row, 'points').style.transform = `translateX(${left}px)`;
+            cell(row, 'owner').style.transform = `translateX(${points.offsetWidth}px)`;
+          }
+          drop.style.setProperty('--drop-x', `${owner.offsetLeft - 1}px`);
+          drop.style.setProperty('--drop-h', `${table.offsetHeight}px`);
+          grip.style.setProperty('--grip-x', `${owner.offsetLeft + points.offsetWidth / 2 - 12}px`);
+          flag(root, 'dragging', true);
+          pointer.to(owner, 0, -owner.offsetHeight / 2);
+        });
+        at(t + 2100, () => {
+          // Drop: the cells already show their final place, so swap them without motion.
+          for (const row of rows()) {
+            for (const col of ['points', 'owner']) {
+              const el = cell(row, col);
+              el.style.transition = 'none';
+              el.style.transform = '';
+            }
+          }
+          reorder();
+          table.getBoundingClientRect();
+          for (const row of rows()) {
+            for (const col of ['points', 'owner']) cell(row, col).style.transition = '';
+          }
+          flag(root, 'dragging', false);
+          pointer.press(false);
+        });
+        at(t + 2500, () => {
+          flag(root, 'grip', false);
+          pointer.hide();
+        });
+        at(t + 2800, () => flag(root, 'peek', true));
+      },
+      reset() {
+        for (const row of rows()) {
+          for (const c of row.cells) c.style.transform = '';
+        }
+        restore();
+        typed.forEach((el) => (el.textContent = ''));
+        for (const name of ['rows', 'tab', 'grip', 'dragging', 'peek']) flag(root, name, false);
+        pointer.reset();
+        set(0);
+      },
+      finish() {
+        restore();
+        reorder();
+        typed.forEach((el) => (el.textContent = el.dataset.text ?? ''));
+        flag(root, 'rows', true);
+        flag(root, 'peek', true);
+      },
     };
   }
 
   function outlineScene(root: HTMLElement): Scene {
     const items = root.querySelector<HTMLElement>('.items')!;
     const sections = root.querySelector<HTMLElement>('.sections')!;
-    const pointer = root.querySelector<HTMLElement>('.pointer')!;
     const dropLine = root.querySelector<HTMLElement>('.drop-line')!;
+    const pointer = pointerOf(root);
     const item = (key: string) => items.querySelector<HTMLElement>(`[data-key="${key}"]`)!;
     const section = (key: string) => sections.querySelector<HTMLElement>(`[data-key="${key}"]`)!;
     const originalItems = [...items.children];
     const originalSections = [...sections.children];
-    const set = (step: number) => (root.dataset.step = String(step));
-
-    /** Moves the pointer to the middle-left of `el`. */
-    const pointAt = (el: HTMLElement, dy = 0) => {
-      const box = root.getBoundingClientRect();
-      const r = el.getBoundingClientRect();
-      pointer.style.setProperty('--x', `${r.left - box.left + 34}px`);
-      pointer.style.setProperty('--y', `${r.top - box.top + r.height / 2 - 4 + dy}px`);
-    };
 
     const reorder = () => {
       items.insertBefore(item('security'), item('components'));
@@ -1170,25 +1591,21 @@ const blocks = [
       play(at) {
         const security = item('security');
         const components = item('components');
-        let lift = 0;
-        at(500, () => {
-          pointAt(security);
-          set(1);
-        });
-        at(1500, () => {
+        at(500, () => pointer.to(security));
+        at(1400, () => {
+          pointer.press(true);
           security.dataset.lifted = '';
-          set(2);
         });
-        at(1800, () => {
-          lift = components.getBoundingClientRect().top - security.getBoundingClientRect().top;
-          dropLine.style.top = `${components.offsetTop + items.offsetTop - 2}px`;
+        at(1700, () => {
           // The dragged item rises; the one it passes moves down to make room.
+          const lift = components.getBoundingClientRect().top - security.getBoundingClientRect().top;
+          dropLine.style.top = `${components.offsetTop + items.offsetTop - 2}px`;
           security.style.transform = `translateY(${lift}px)`;
           components.style.transform = `translateY(${security.offsetHeight + 2}px)`;
-          pointAt(security, lift);
-          set(3);
+          pointer.to(security, 0, lift);
+          flag(root, 'dragging', true);
         });
-        at(2700, () => {
+        at(2600, () => {
           // Drop: both items already show their final place, so swap them in the
           // DOM without motion; the page sections slide into the new order.
           for (const el of [security, components]) {
@@ -1201,25 +1618,25 @@ const blocks = [
           components.style.transition = '';
           delete security.dataset.lifted;
           section('security').dataset.flash = '';
-          set(4);
+          flag(root, 'dragging', false);
+          pointer.press(false);
         });
-        at(2800, () => delete section('security').dataset.flash);
-        at(3700, () => set(5));
+        at(2700, () => delete section('security').dataset.flash);
+        at(3200, () => pointer.hide());
+        at(3600, () => flag(root, 'peek', true));
       },
       reset() {
-        const security = item('security');
-        security.style.transform = '';
-        item('components').style.transform = '';
-        delete security.dataset.lifted;
+        for (const key of ['security', 'components']) item(key).style.transform = '';
+        delete item('security').dataset.lifted;
         restore();
-        pointer.style.removeProperty('--x');
-        pointer.style.removeProperty('--y');
-        set(0);
+        pointer.reset();
+        flag(root, 'dragging', false);
+        flag(root, 'peek', false);
       },
       finish() {
         restore();
         reorder();
-        set(5);
+        flag(root, 'peek', true);
       },
     };
   }
@@ -1237,28 +1654,63 @@ const blocks = [
         at(typed - 200, () => set(2));
         at(typed + 600, () => set(3)); // Enter: the callout
         const done = typeInto(at, callout, typed + 900, 40);
-        at(done + 500, () => set(4));
+        at(done + 500, () => flag(root, 'peek', true));
       },
       reset() {
         command.textContent = '';
         callout.textContent = '';
         set(0);
+        flag(root, 'peek', false);
       },
       finish() {
         callout.textContent = callout.dataset.text ?? '';
-        set(4);
+        set(3);
+        flag(root, 'peek', true);
       },
     };
   }
 
+  function diffScene(root: HTMLElement): Scene {
+    const target = root.querySelector<HTMLElement>('[data-target] .box')!;
+    const pointer = pointerOf(root);
+    return {
+      play(at) {
+        at(500, () => pointer.to(target, -2, 2));
+        at(1300, () => pointer.press(true));
+        at(1450, () => {
+          pointer.press(false);
+          flag(root, 'checked', true);
+        });
+        at(2000, () => pointer.hide());
+        at(2300, () => flag(root, 'peek', true));
+      },
+      reset() {
+        pointer.reset();
+        flag(root, 'checked', false);
+        flag(root, 'peek', false);
+      },
+      finish() {
+        flag(root, 'checked', true);
+        flag(root, 'peek', true);
+      },
+    };
+  }
+
+  const builders: Record<string, (root: HTMLElement) => Scene> = {
+    paste: pasteScene,
+    table: tableScene,
+    outline: outlineScene,
+    slash: slashScene,
+    diff: diffScene,
+  };
+
   for (const player of document.querySelectorAll<HTMLElement>('.player')) {
+    const tabList = player.querySelector<HTMLElement>('.tabs')!;
     const tabs = [...player.querySelectorAll<HTMLButtonElement>('.tab')];
     const fileName = player.querySelector<HTMLElement>('.file-name')!;
-    const scenes = new Map<string, Scene>([
-      ['paste', pasteScene(player.querySelector('.scene-paste')!)],
-      ['outline', outlineScene(player.querySelector('.scene-outline')!)],
-      ['slash', slashScene(player.querySelector('.scene-slash')!)],
-    ]);
+    const scenes = new Map(
+      tabs.map((tab) => [tab.dataset.scene!, builders[tab.dataset.scene!](player.querySelector(`#scene-${tab.dataset.scene}`)!)]),
+    );
     let current = 0;
     let timers: number[] = [];
     let visible = false;
@@ -1269,6 +1721,13 @@ const blocks = [
       delete player.dataset.playing;
     };
 
+    /** Keeps the active tab in view in the sideways tab row (phones), without scrolling the page. */
+    const revealTab = (tab: HTMLElement) => {
+      if (tabList.scrollWidth <= tabList.clientWidth) return;
+      const left = tab.offsetLeft - tabList.offsetLeft - 16;
+      tabList.scrollTo({ left, behavior: reduceMotion ? 'auto' : 'smooth' });
+    };
+
     const select = (index: number) => {
       stop();
       current = index;
@@ -1276,11 +1735,11 @@ const blocks = [
         const on = i === index;
         tab.setAttribute('aria-selected', String(on));
         tab.tabIndex = on ? 0 : -1;
-        const panel = player.querySelector<HTMLElement>(`#${tab.getAttribute('aria-controls')}`)!;
-        panel.hidden = !on;
+        player.querySelector<HTMLElement>(`#${tab.getAttribute('aria-controls')}`)!.hidden = !on;
         scenes.get(tab.dataset.scene!)!.reset();
       });
       fileName.textContent = tabs[index].dataset.file ?? '';
+      revealTab(tabs[index]);
       const scene = scenes.get(tabs[index].dataset.scene!)!;
       if (reduceMotion) {
         scene.finish();
@@ -1297,10 +1756,10 @@ const blocks = [
     tabs.forEach((tab, i) => {
       tab.addEventListener('click', () => select(i));
       tab.addEventListener('keydown', (event) => {
-        if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+        const keys: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+        if (!(event.key in keys)) return;
         event.preventDefault();
-        const step = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
-        const next = (i + step + tabs.length) % tabs.length;
+        const next = (i + keys[event.key] + tabs.length) % tabs.length;
         tabs[next].focus();
         select(next);
       });
@@ -1315,9 +1774,8 @@ const blocks = [
     // Play only while the demo is on screen; start the current scene over when it comes back.
     new IntersectionObserver(
       ([entry]) => {
-        const nowVisible = entry.isIntersecting;
-        if (nowVisible === visible) return;
-        visible = nowVisible;
+        if (entry.isIntersecting === visible) return;
+        visible = entry.isIntersecting;
         if (visible) {
           select(current);
         } else {
