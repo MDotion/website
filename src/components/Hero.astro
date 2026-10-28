@@ -6,16 +6,25 @@ import { links } from '../links';
 <section class="hero">
   <div class="container">
     <div class="intro">
-      <p class="eyebrow enter">For VS Code, Cursor and VSCodium</p>
+      <a class="news enter" href={links.changelog}>
+        <span class="news-tag">New in 0.2</span>
+        <span class="news-text">Tables from your spreadsheet, an outline you can rearrange</span>
+        <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </a>
       <h1 class="display enter">Markdown, edited like&nbsp;a&nbsp;page.</h1>
       <p class="lead enter">
-        MDotion is a block editor for <code>.md</code> files. Slash menu, drag-and-drop blocks, callouts and tables, while
-        the file on disk stays plain Markdown.
+        MDotion is a block editor for <code>.md</code> files. Slash menu, drag-and-drop blocks, an outline to reorder
+        sections and tables you can paste from a spreadsheet, while the file on disk stays plain Markdown.
       </p>
       <div class="actions enter">
         <a class="button button-primary" href={links.marketplace}>Install for VS Code</a>
-        <a class="button button-secondary" href={links.openVsx}>Get it on Open VSX</a>
+        <a class="button button-secondary" href={links.latestRelease}>Download the .vsix</a>
       </div>
+      <p class="availability enter">
+        <span class="status"><span><strong>Cursor and VSCodium:</strong> the Open VSX listing is in review. Install the .vsix meanwhile.</span></span>
+      </p>
       <p class="meta enter">Free and open source · No account · No telemetry</p>
     </div>
 
@@ -49,6 +58,68 @@ import { links } from '../links';
   .lead code {
     font-size: 0.9em;
     color: var(--ink);
+  }
+
+  /* What's new: a quiet link above the title. */
+  .news {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 100%;
+    padding: 4px 12px 4px 4px;
+    border-radius: 999px;
+    background: var(--bg);
+    box-shadow: var(--surface-shadow);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    text-decoration: none;
+    transition:
+      transform 160ms var(--ease-out),
+      color 150ms ease;
+  }
+
+  .news:active {
+    transform: scale(0.98);
+  }
+
+  .news-tag {
+    flex: none;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--bg);
+    font-weight: 600;
+  }
+
+  .news-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .news svg {
+    flex: none;
+    color: var(--text-tertiary);
+    transition:
+      transform 200ms var(--ease-out),
+      color 150ms ease;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .news:hover {
+      color: var(--ink);
+    }
+
+    .news:hover svg {
+      color: var(--ink);
+      transform: translateX(2px);
+    }
+  }
+
+  .availability {
+    margin-top: 16px;
   }
 
   .actions {
@@ -88,6 +159,9 @@ import { links } from '../links';
   .enter:nth-child(5) {
     animation-delay: 200ms;
   }
+  .enter:nth-child(6) {
+    animation-delay: 250ms;
+  }
   .stage.enter {
     animation-delay: 260ms;
   }
@@ -100,6 +174,10 @@ import { links } from '../links';
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .news:active {
+      transform: none;
+    }
+
     .enter {
       animation-name: fade;
       animation-duration: 300ms;

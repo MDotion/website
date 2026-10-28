@@ -8,9 +8,11 @@ const stores = [
     body: 'For VS Code 1.85 or later.',
   },
   {
-    href: links.openVsx,
-    title: 'Open VSX',
-    body: 'For Cursor, VSCodium and other editors built on VS Code.',
+    // Until Open VSX approves the listing, Cursor and VSCodium install the .vsix of the latest release.
+    href: links.latestRelease,
+    title: 'Cursor and VSCodium',
+    status: 'Open VSX listing in review',
+    body: 'Until the listing is approved, download the .vsix and run Extensions: Install from VSIX… in the Command Palette.',
   },
 ];
 ---
@@ -43,6 +45,7 @@ const stores = [
                   />
                 </svg>
               </span>
+              {s.status ? <span class="status store-status">{s.status}</span> : null}
               <span class="store-body">{s.body}</span>
             </a>
           ))
@@ -90,6 +93,7 @@ const stores = [
 
   .store {
     display: grid;
+    align-content: start;
     gap: 4px;
     padding: 20px;
     border-radius: 12px;
@@ -121,6 +125,11 @@ const stores = [
     transition:
       transform 200ms var(--ease-out),
       color 150ms ease;
+  }
+
+  .store-status {
+    justify-self: start;
+    margin-block: 4px 2px;
   }
 
   .store-body {
