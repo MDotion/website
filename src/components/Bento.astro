@@ -1,0 +1,2898 @@
+---
+// The features as a bento grid: every tile shows one thing MDotion does, as a
+// short scripted demo that plays while the tile is on screen and starts over
+// after a pause. Everything visual is CSS transitions on transform / opacity;
+// the script only sets data attributes on a timeline (see `Scene`).
+
+type Line = { text: string; id?: string; hidden?: boolean };
+
+const sheet = [
+  ['Feature', 'Owner', 'Points'],
+  ['Authentication', 'Ada', '5'],
+  ['Notifications', 'Linus', '8'],
+  ['Billing', 'Grace', '13'],
+];
+
+const sections = [
+  { key: 'overview', title: 'Overview', text: 'Four services behind a single gateway.' },
+  { key: 'components', title: 'Components', text: 'Gateway, auth, billing and the event store.' },
+  { key: 'security', title: 'Security', text: 'Encrypted in transit. Secrets live in the vault.' },
+];
+
+const blocks = [
+  { icon: 'Aa', title: 'Text', desc: 'Just start writing.' },
+  { icon: '☑', title: 'To-do list', desc: 'Track tasks with a to-do list.' },
+  { icon: '💡', title: 'Callout', desc: 'Make writing stand out.' },
+  { icon: '▦', title: 'Table', desc: 'Add a simple table.' },
+];
+
+const todos = [
+  { text: 'Freeze the feature list', done: true },
+  { text: 'Update the changelog', done: true },
+  { text: 'Record the demo video', done: false },
+];
+
+const tableLines = [
+  '| Feature        | Owner | Points |',
+  '| -------------- | ----- | -----: |',
+  '| Authentication | Ada   | 5      |',
+  '| Notifications  | Linus | 8      |',
+  '| Billing        | Grace | 13     |',
+];
+
+const sources: Record<string, Line[]> = {
+  paste: [
+    { text: '# Q4 roadmap' },
+    { text: '' },
+    { text: 'Pulled from the planning sheet:' },
+    { text: '' },
+    ...tableLines.map((text) => ({ text, id: 'pasted', hidden: true })),
+  ],
+  slash: [
+    { text: '# Release notes' },
+    { text: '' },
+    { text: 'Version 0.3 ships a diff view.' },
+    { text: '', id: 'gap', hidden: true },
+    { text: '> [!TIP]', id: 'tip', hidden: true },
+    { text: '> ', id: 'tip-text', hidden: true },
+  ],
+  diff: [
+    { text: '# Release checklist' },
+    { text: '' },
+    { text: '## Before the release' },
+    { text: '' },
+    { text: '- [x] Freeze the feature list' },
+    { text: '- [x] Update the changelog' },
+    { text: '- [ ] Record the demo video', id: 'todo' },
+  ],
+};
+
+const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** Dims Markdown syntax (#, >, |, list markers, delimiter rows), like the hero mock. */
+function md(text: string): string {
+  if (/^\|[\s:|-]+\|$/.test(text)) return `<span class="m">${escape(text)}</span>`;
+  if (text.startsWith('|')) return escape(text).replace(/\|/g, '<span class="m">|</span>');
+  const marker = /^(#{1,6} |&gt; \[!\w+\]|&gt; ?|- \[[ x]\] )/;
+  return escape(text).replace(marker, '<span class="m">$1</span>');
+}
+
+// One string: inside <pre>, whitespace from template formatting would become blank lines.
+const lineHtml = (text: string) => `<span class="line">${md(text)}</span>`;
+const outlineHtml = [
+  lineHtml('# Architecture'),
+  lineHtml(''),
+  ...sections.map((s) => `<span class="block" data-key="${s.key}">${[`## ${s.title}`, s.text, ''].map(lineHtml).join('')}</span>`),
+].join('');
+
+/** The diff of the Changes tile: [old line, new line, sign, text with the changed words in [brackets]]. */
+const diffRows: [number | null, number | null, '+' | '-' | ' ', string][] = [
+  [1, 1, ' ', '# Release notes'],
+  [2, 2, ' ', ''],
+  [3, null, '-', 'Version [0.2] ships [tables].'],
+  [null, 3, '+', 'Version [0.3] ships [a diff view].'],
+  [4, 4, ' ', ''],
+  [5, 5, ' ', '## Checklist'],
+  [6, 6, ' ', '- [x] Update the changelog'],
+  [null, 7, '+', '- [x] Publish to Open VSX'],
+  [7, 8, ' ', '- [ ] Record the demo'],
+];
+
+/** "[word]" marks a changed word; checkboxes "[ ]" / "[x]" are not words. */
+const words = (text: string) => escape(text).replace(/\[(?![ x]\])([^\]]+)\]/g, '<span class="w">$1</span>');
+
+const turnInto = [
+  { keys: '⌘⌥4', kind: 'todo', md: '- [ ] Ship the release' },
+  { keys: '⌘⌥5', kind: 'bullet', md: '- Ship the release' },
+  { keys: '⌘⌥8', kind: 'code', md: '```\nShip the release' },
+  { keys: '⌘⌥9', kind: 'callout', md: '> [!NOTE]\n> Ship the release' },
+  { keys: '⌘⌥1', kind: 'heading', md: '# Ship the release' },
+];
+
+const shortcuts = [
+  { label: 'Bold', keys: '⌘B', match: false },
+  { label: 'Heading 1', keys: '⌘⌥1', match: false },
+  { label: 'To-do list', keys: '⌘⌥4', match: false },
+  { label: 'Find', keys: '⌘F', match: false },
+  { label: 'Fold the current section', keys: '⌘⌥↑', match: true },
+  { label: 'Fold or unfold all sections', keys: '⌘⌥T', match: true },
+];
+
+const pointer = `<svg width="18" height="22" viewBox="0 0 18 22"><path d="M1.5 1.5v16.2l4.3-4.1 2.9 6.6 2.9-1.3-2.9-6.5h6z" fill="#0f1419" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" /></svg>`;
+
+/** Everything else, said in one line each. */
+const extras = [
+  'Callouts saved as GitHub alerts',
+  'Front matter as page properties',
+  'Code blocks with syntax highlighting',
+  'Drag blocks by their handle',
+  'HTML and anything else kept verbatim',
+  'Light and dark themes',
+];
+---
+
+<section class="section" id="features">
+  <div class="container">
+    <div class="head">
+      <p class="eyebrow">Features</p>
+      <h2 class="section-title">Everything a page needs.<br />Nothing your files don't.</h2>
+      <p class="lead">Write like in Notion, keep Markdown that Git and GitHub understand.</p>
+    </div>
+
+    <div class="bento">
+      <!-- Changes since the last commit -->
+      <article class="tile tile-full" id="changes" style="--i: 0">
+        <div class="tile-text">
+          <p class="tile-tag">New in 0.3</p>
+          <h3>See what changed since your last commit</h3>
+          <p>
+            The diff you read in every pull request: line numbers, red and green lines, the words that changed. Switch to
+            Rendered to review the page itself.
+          </p>
+        </div>
+        <div class="window editor-palette">
+          <div class="scene scene-changes" data-scene="changes" data-step="0">
+            <div class="changes-bar">
+              <span class="changes-file">release.md</span>
+              <span class="segmented" aria-hidden="true">
+                <span class="segmented-pill"></span>
+                <span class="seg seg-source">Source</span>
+                <span class="seg seg-rendered">Rendered</span>
+              </span>
+              <span class="changes-stats"><span class="add">+2</span> <span class="del">−1</span></span>
+            </div>
+            <div class="changes-body">
+              <div class="sdiff" role="img" aria-label="Source diff: one line changed, one line added">
+                <div class="sdiff-row is-hunk"><span></span><span></span><span></span><span>@@ -1,7 +1,8 @@</span></div>
+                {
+                  diffRows.map(([a, b, sign, text], i) => (
+                    <div class:list={['sdiff-row', { 'is-add': sign === '+', 'is-del': sign === '-' }]} style={`--i: ${i}`}>
+                      <span>{a ?? ''}</span>
+                      <span>{b ?? ''}</span>
+                      <span>{sign === '-' ? '−' : sign}</span>
+                      <span set:html={words(text) || '&#8203;'} />
+                    </div>
+                  ))
+                }
+              </div>
+              <div class="rdiff" role="img" aria-label="Rendered diff of the same change">
+                <h4 class="r-title">Release notes</h4>
+                <p class="r-row is-del" style="--i: 0">Version <span class="w">0.2</span> ships <span class="w">tables</span>.</p>
+                <p class="r-row is-add" style="--i: 1">Version <span class="w">0.3</span> ships <span class="w">a diff view</span>.</p>
+                <h5 class="r-sub">Checklist</h5>
+                <p class="r-todo"><span class="box is-on"></span>Update the changelog</p>
+                <p class="r-todo r-row is-add" style="--i: 2"><span class="box is-on"></span>Publish to Open VSX</p>
+                <p class="r-todo"><span class="box"></span>Record the demo</p>
+              </div>
+            </div>
+            <span class="pointer" aria-hidden="true" set:html={pointer} />
+          </div>
+        </div>
+      </article>
+
+      <!-- Find and replace -->
+      <article class="tile" style="--i: 1">
+        <div class="tile-text">
+          <p class="tile-tag">New in 0.3</p>
+          <h3>Find and replace</h3>
+          <p>Match case, whole words, regular expressions. Replace all is one undo.</p>
+        </div>
+        <div class="window editor-palette">
+          <div class="scene scene-find" data-scene="find" data-step="0">
+            <div class="findbar" aria-hidden="true">
+              <span class="find-field"><span class="typed" data-text="Ada"></span><span class="caret"></span></span>
+              <span class="find-count"></span>
+            </div>
+            <div class="replacebar" aria-hidden="true">
+              <span class="find-field"><span class="typed" data-text="Grace"></span></span>
+              <span class="find-button">Replace all</span>
+            </div>
+            <div class="page find-page">
+              <p><mark class="hit"><span class="old">Ada</span><span class="new">Grace</span></mark> owns authentication.</p>
+              <p>Ask <mark class="hit"><span class="old">Ada</span><span class="new">Grace</span></mark> before merging.</p>
+              <p>Billing: <mark class="hit"><span class="old">Ada</span><span class="new">Grace</span></mark> and Linus.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Turn a block into another one -->
+      <article class="tile" style="--i: 2">
+        <div class="tile-text">
+          <p class="tile-tag">New in 0.3</p>
+          <h3>Notion's shortcuts</h3>
+          <p>⌘⌥4 to ⌘⌥9 turn a block into a to-do, a list, code or a callout.</p>
+        </div>
+        <div class="window editor-palette">
+          <div class="scene scene-turn" data-scene="turn" data-kind="text">
+            <div class="page turn-page">
+              <div class="morph">
+                <span class="morph-icon" aria-hidden="true"><span class="box"></span><span class="dot"></span><span class="bulb">💡</span></span>
+                <span class="morph-text">Ship the release</span>
+              </div>
+            </div>
+            <div class="turn-md"><pre class="turn-code">Ship the release</pre></div>
+            {turnInto.map((step) => <kbd class="key turn-key" data-kind={step.kind} data-md={step.md}>{step.keys}</kbd>)}
+          </div>
+        </div>
+      </article>
+
+      <!-- All the shortcuts -->
+      <article class="tile" style="--i: 3">
+        <div class="tile-text">
+          <p class="tile-tag">New in 0.3</p>
+          <h3>Every shortcut, one key away</h3>
+          <p>⌘⌥K lists them all. The editor's commands can be rebound in VS Code.</p>
+        </div>
+        <div class="window editor-palette">
+          <div class="scene scene-keys" data-scene="keys" data-step="0">
+            <kbd class="key keys-key" aria-hidden="true">⌘⌥K</kbd>
+            <div class="keys-panel" aria-hidden="true">
+              <span class="keys-search"><span class="typed" data-text="fold"></span><span class="caret"></span><span class="keys-placeholder">Search shortcuts…</span></span>
+              <div class="keys-list">
+                {
+                  shortcuts.map((s) => (
+                    <span class="keys-row" data-match={String(s.match)}>
+                      <span class="keys-row-inner">
+                        <span>{s.label}</span>
+                        <kbd>{s.keys}</kbd>
+                      </span>
+                    </span>
+                  ))
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Paste a spreadsheet -->
+      <article class="tile tile-wide" style="--i: 4">
+        <div class="tile-text">
+          <h3>Paste a spreadsheet</h3>
+          <p>Copy a range in Excel or Google Sheets and paste it: a clean GFM table, numbers still aligned. Then edit it like a sheet.</p>
+        </div>
+        <div class="window editor-palette">
+        <div class="scene scene-paste" id="scene-paste" data-step="0">
+          <div class="pane visual">
+            <div class="page">
+              <h3 class="title">Q4 roadmap</h3>
+              <p>Pulled from the planning sheet:</p>
+              <div class="paste-slot">
+                <span class="caret" aria-hidden="true"></span>
+                <table class="table" aria-label="Pasted table">
+                  {
+                    sheet.map((row, r) => (
+                      <tr style={`--row: ${r}`}>
+                        {row.map((cell, c) =>
+                          r === 0 ? <th class:list={{ num: c === 2 }}>{cell}</th> : <td class:list={{ num: c === 2 }}>{cell}</td>,
+                        )}
+                      </tr>
+                    ))
+                  }
+                </table>
+              </div>
+            </div>
+
+            <div class="sheet" aria-hidden="true">
+              <div class="sheet-bar">
+                <span class="sheet-icon"></span>
+                Planning · Sheet1
+              </div>
+              <div class="sheet-grid">
+                <span class="corner"></span>
+                {['A', 'B', 'C'].map((c) => <span class="col-head">{c}</span>)}
+                {
+                  sheet.map((row, r) => (
+                    <>
+                      <span class="row-head">{r + 1}</span>
+                      {row.map((cell, c) => (
+                        <span class:list={['cell', { bold: r === 0, num: c === 2 && r > 0 }]}>{cell}</span>
+                      ))}
+                    </>
+                  ))
+                }
+                <span class="sheet-selection"></span>
+              </div>
+            </div>
+
+            <kbd class="key key-copy" aria-hidden="true">⌘C</kbd>
+            <kbd class="key key-paste" aria-hidden="true">⌘V</kbd>
+          </div>
+
+          <div class="pane source" aria-label="roadmap.md">
+            <div class="source-bar"><span>roadmap.md</span><span class="status">+5 lines</span></div>
+            <pre class="code">{sources.paste.map((l) => <span class="line" data-id={l.id} hidden={l.hidden} set:html={md(l.text)} />)}</pre>
+          </div>
+        </div>
+        </div>
+      </article>
+
+      <!-- Move sections -->
+      <article class="tile" style="--i: 5">
+        <div class="tile-text">
+          <h3>Move whole sections</h3>
+          <p>Drag a heading in the outline: its content moves with it, and in Git the lines just change place.</p>
+        </div>
+        <div class="window editor-palette stack">
+        <div class="scene scene-outline" id="scene-outline" data-step="0">
+          <div class="pane visual outline-visual">
+            <div class="page">
+              <h3 class="title">Architecture</h3>
+              <div class="sections">
+                {
+                  sections.map((s) => (
+                    <div class="sec" data-key={s.key}>
+                      <h4>{s.title}</h4>
+                      <p>{s.text}</p>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+
+            <aside class="outline" aria-label="Outline">
+              <span class="outline-title">Outline</span>
+              <span class="item root">Architecture</span>
+              <div class="items">
+                {
+                  sections.map((s) => (
+                    <span class="item" data-key={s.key}>
+                      {s.title}
+                    </span>
+                  ))
+                }
+              </div>
+              <span class="drop-line" aria-hidden="true"></span>
+            </aside>
+
+            <span class="pointer" aria-hidden="true">
+              <svg width="18" height="22" viewBox="0 0 18 22">
+                <path d="M1.5 1.5v16.2l4.3-4.1 2.9 6.6 2.9-1.3-2.9-6.5h6z" fill="#0f1419" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" />
+              </svg>
+            </span>
+          </div>
+
+          <div class="pane source" aria-label="architecture.md">
+            <div class="source-bar"><span>architecture.md</span><span class="status">3 lines moved · nothing rewritten</span></div>
+            <pre class="code" set:html={outlineHtml} />
+          </div>
+        </div>
+        </div>
+      </article>
+
+      <!-- Slash menu -->
+      <article class="tile tile-half" style="--i: 6">
+        <div class="tile-text">
+          <h3>Type /</h3>
+          <p>Callouts, to-dos, tables and code from the slash menu, saved as Markdown GitHub renders.</p>
+        </div>
+        <div class="window editor-palette stack">
+        <div class="scene scene-slash" id="scene-slash" data-step="0">
+          <div class="pane visual">
+            <div class="page">
+              <h3 class="title">Release notes</h3>
+              <p>Version 0.3 ships a diff view.</p>
+              <p class="typing"><span class="typed" data-text="/cal"></span><span class="caret" aria-hidden="true"></span></p>
+              <div class="callout">
+                <span aria-hidden="true">💡</span>
+                <p><span class="typed" data-text="Ship it on Friday, after the review."></span><span class="caret" aria-hidden="true"></span></p>
+              </div>
+            </div>
+
+            <div class="menu" aria-hidden="true">
+              <span class="menu-section">Basic blocks</span>
+              {
+                blocks.map((b) => (
+                  <span class="menu-item" data-match={b.title === 'Callout' ? 'true' : 'false'}>
+                    <span class="menu-icon">{b.icon}</span>
+                    <span class="menu-text">
+                      <span class="menu-title">{b.title}</span>
+                      <span class="menu-desc">{b.desc}</span>
+                    </span>
+                  </span>
+                ))
+              }
+            </div>
+          </div>
+
+          <div class="pane source" aria-label="release-notes.md">
+            <div class="source-bar"><span>release-notes.md</span><span class="status">A GitHub alert</span></div>
+            <pre class="code">{sources.slash.map((l) => <span class="line" data-id={l.id} hidden={l.hidden} set:html={md(l.text)} />)}</pre>
+          </div>
+        </div>
+        </div>
+      </article>
+
+      <!-- Clean diffs -->
+      <article class="tile tile-half" style="--i: 7">
+        <div class="tile-text">
+          <h3>Diffs stay clean</h3>
+          <p>Only the blocks you touch are rewritten. Tick a to-do and Git shows exactly that one line.</p>
+        </div>
+        <div class="window editor-palette stack">
+        <div class="scene scene-diff" id="scene-diff" data-step="0">
+          <div class="pane visual">
+            <div class="page">
+              <h3 class="title">Release checklist</h3>
+              <h4 class="subtitle">Before the release</h4>
+              <ul class="todos">
+                {
+                  todos.map((t) => (
+                    <li data-done={t.done ? '' : undefined} data-target={t.done ? undefined : ''}>
+                      <span class="box" aria-hidden="true"></span>
+                      <span>{t.text}</span>
+                    </li>
+                  ))
+                }
+              </ul>
+            </div>
+            <span class="pointer" aria-hidden="true">
+              <svg width="18" height="22" viewBox="0 0 18 22">
+                <path d="M1.5 1.5v16.2l4.3-4.1 2.9 6.6 2.9-1.3-2.9-6.5h6z" fill="#0f1419" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" />
+              </svg>
+            </span>
+          </div>
+
+          <div class="pane source" aria-label="release.md">
+            <div class="source-bar"><span>release.md</span><span class="status">1 line changed · the rest byte for byte</span></div>
+            <pre class="code">{
+              sources.diff.map((l) => (
+                <span class="line" data-id={l.id} data-checked={l.id ? md('- [x] Record the demo video') : undefined} set:html={md(l.text)} />
+              ))
+            }</pre>
+          </div>
+        </div>
+        </div>
+      </article>
+
+      <!-- Fold sections -->
+      <article class="tile tile-half" style="--i: 8">
+        <div class="tile-text">
+          <h3>Fold what you're not working on</h3>
+          <p>Click the chevron of a heading, or press ⌘⌥↑. The file never changes.</p>
+        </div>
+        <div class="window editor-palette">
+          <div class="scene scene-fold" data-scene="fold" data-step="0">
+            <div class="page fold-page">
+              <h4 class="fold-title">Architecture</h4>
+              <div class="fold-sec">
+                <h5 class="fold-head"><span class="chevron" aria-hidden="true"></span>Overview</h5>
+                <p>Four services behind a single gateway.</p>
+              </div>
+              <div class="fold-sec" data-target>
+                <h5 class="fold-head"><span class="chevron" aria-hidden="true"></span>Components<span class="fold-pill">2 blocks</span></h5>
+                <div class="fold-body">
+                  <div>
+                    <p>Gateway, auth, billing and the event store.</p>
+                    <p>Each one deploys on its own.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="fold-sec">
+                <h5 class="fold-head"><span class="chevron" aria-hidden="true"></span>Security</h5>
+                <p>Encrypted in transit.</p>
+              </div>
+            </div>
+            <kbd class="key fold-key" aria-hidden="true">⌘⌥↓</kbd>
+            <span class="pointer" aria-hidden="true" set:html={pointer} />
+          </div>
+        </div>
+      </article>
+
+      <!-- Visual / Markdown -->
+      <article class="tile tile-half" style="--i: 9">
+        <div class="tile-text">
+          <h3>Source is one shortcut away</h3>
+          <p>⌘⌥M switches between the page and its Markdown in the same tab, unsaved changes included.</p>
+        </div>
+        <div class="window editor-palette">
+          <div class="scene scene-switch" data-scene="switch" data-view="visual">
+            <div class="switch-bar">
+              <span class="segmented" aria-hidden="true">
+                <span class="segmented-pill"></span>
+                <span class="seg seg-source">Visual</span>
+                <span class="seg seg-rendered">Markdown</span>
+              </span>
+            </div>
+            <div class="switch-body">
+              <div class="page switch-visual">
+                <h4 class="r-title">Launch plan</h4>
+                <p class="r-todo"><span class="box is-on"></span>Write the announcement</p>
+                <p class="r-todo"><span class="box"></span>Post it on Friday</p>
+                <div class="switch-callout"><span aria-hidden="true">💡</span>Ask for feedback in the issues.</div>
+              </div>
+              <pre class="switch-source" set:html={['# Launch plan', '', '- [x] Write the announcement', '- [ ] Post it on Friday', '', '> [!TIP]', '> Ask for feedback in the issues.'].map(md).join('\n')} />
+            </div>
+            <kbd class="key switch-key" aria-hidden="true">⌘⌥M</kbd>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <ul class="extras">
+      {extras.map((text) => <li>{text}</li>)}
+    </ul>
+  </div>
+</section>
+
+<style>
+  .head {
+    max-width: 600px;
+  }
+
+  .head .section-title {
+    margin-top: 12px;
+  }
+
+  .head .lead {
+    margin-top: 16px;
+  }
+
+  /* ---- The grid ---- */
+  .bento {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: clamp(32px, 5vw, 48px);
+  }
+
+  .tile {
+    grid-column: span 2;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+    padding: 24px;
+    border-radius: 20px;
+    background: var(--bg-subtle);
+    box-shadow: inset 0 0 0 1px var(--hairline);
+  }
+
+  .tile-half {
+    grid-column: span 3;
+  }
+
+  .tile-wide {
+    grid-column: span 4;
+  }
+
+  .tile-full {
+    grid-column: span 6;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    align-items: center;
+    gap: 32px;
+    padding: 32px;
+  }
+
+  /* Tiles rise into place once, the first time the grid comes into view. */
+  .bento[data-animate] .tile {
+    opacity: 0;
+    transform: translateY(12px);
+    transition:
+      opacity 500ms var(--ease-out),
+      transform 500ms var(--ease-out);
+    transition-delay: calc(var(--i) * 50ms);
+  }
+
+  .bento[data-animate] .tile[data-in] {
+    opacity: 1;
+    transform: none;
+  }
+
+  .tile-text h3 {
+    margin: 0;
+    font-size: 1.0625rem;
+    line-height: 1.35;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+
+  .tile-full .tile-text h3 {
+    font-size: 1.5rem;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  .tile-text p {
+    margin: 6px 0 0;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  .tile-text .tile-tag {
+    display: inline-block;
+    margin: 0 0 10px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--bg);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .tile .window {
+    margin-top: auto;
+    border-radius: 12px;
+    box-shadow: var(--surface-shadow);
+  }
+
+  .extras {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 24px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .extras li {
+    padding: 6px 12px;
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px var(--hairline);
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  /* ---- Scenes reused from the editor demo ---- */
+  .window {
+    --gutter-added: #2ea043;
+    --gutter-modified: #2090d3;
+
+    display: grid;
+    overflow: hidden;
+    border-radius: 14px;
+    background: var(--e-bg);
+    color: var(--e-text);
+    box-shadow: var(--surface-shadow-lg);
+    text-align: left;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .window {
+      --gutter-added: #3fb950;
+      --gutter-modified: #1b81a8;
+    }
+  }
+
+  .scene {
+    grid-area: 1 / 1;
+    display: grid;
+    transition: opacity 240ms var(--ease-out);
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    height: 340px;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  .pane {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .page {
+    padding: 28px 36px;
+  }
+
+  .page p {
+    margin: 0;
+  }
+
+  .title {
+    margin: 0 0 8px;
+    font-size: 1.75rem;
+    line-height: 1.2;
+    font-weight: 700;
+    color: inherit;
+  }
+
+  .caret {
+    display: inline-block;
+    width: 1.5px;
+    height: 1.15em;
+    margin-left: 1px;
+    vertical-align: text-bottom;
+    background: var(--e-text);
+    animation: blink 1s steps(1) infinite;
+  }
+
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  /* Markdown source, like the IDE's text editor next to MDotion. */
+  .source {
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--e-divider);
+    background: var(--e-code-bg);
+  }
+
+  .source-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 44px;
+    padding: 0 16px;
+    font-size: 0.8125rem;
+    color: var(--e-text-2);
+  }
+
+  .status {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--diff-add-bg);
+    color: var(--diff-add-text);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(2px);
+    transition:
+      opacity 200ms var(--ease-out),
+      transform 200ms var(--ease-out);
+  }
+
+  .scene[data-done] .status {
+    opacity: 1;
+    transform: none;
+  }
+
+  .code {
+    flex: 1;
+    margin: 0;
+    padding: 0 0 16px;
+    overflow: hidden;
+    counter-reset: line;
+    font-family: var(--font-code);
+    font-size: 0.75rem;
+    line-height: 1.75;
+  }
+
+  .code :global(.block) {
+    display: block;
+  }
+
+  .code :global(.line) {
+    position: relative;
+    display: block;
+    min-height: 1.75em;
+    padding-left: 52px;
+    padding-right: 12px;
+    white-space: pre;
+    transition: background-color 600ms ease;
+  }
+
+  .code :global(.line[hidden]) {
+    display: none;
+  }
+
+  .code :global(.line)::before {
+    counter-increment: line;
+    content: counter(line);
+    position: absolute;
+    left: 0;
+    width: 34px;
+    text-align: right;
+    color: var(--e-text-3);
+  }
+
+  /* VS Code's gutter markers: added (green) and modified (blue) lines. */
+  .code :global(.line)::after {
+    content: '';
+    position: absolute;
+    left: 42px;
+    top: 3px;
+    bottom: 3px;
+    width: 3px;
+    border-radius: 1px;
+    background: transparent;
+  }
+
+  .code :global(.line[data-mark='added'])::after {
+    background: var(--gutter-added);
+  }
+
+  .code :global(.line[data-mark='modified'])::after {
+    background: var(--gutter-modified);
+  }
+
+  .code :global(.line[data-flash]) {
+    background: var(--e-selection);
+    transition: none;
+  }
+
+  .code :global(.line[data-new]) {
+    animation: line-in 260ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 50ms);
+  }
+
+  @keyframes line-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+
+  .code :global(.m) {
+    color: var(--e-text-3);
+  }
+
+  /* The pointer acting on the page. Scenes move it with --x / --y. */
+  .pointer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 3;
+    opacity: 0;
+    transform: translate(var(--x, 60%), var(--y, 80%));
+    transition:
+      transform 650ms var(--ease-in-out),
+      opacity 200ms ease;
+    pointer-events: none;
+  }
+
+  .pointer svg {
+    transition: transform 120ms var(--ease-out);
+  }
+
+  .scene[data-pointer] .pointer {
+    opacity: 1;
+  }
+
+  .scene[data-press] .pointer svg {
+    transform: scale(0.88);
+  }
+
+  .key {
+    position: absolute;
+    padding: 4px 9px;
+    border-radius: 7px;
+    background: var(--e-popover);
+    box-shadow: var(--e-popover-shadow);
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--e-text);
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+    transition:
+      opacity 180ms var(--ease-out),
+      transform 180ms var(--ease-out);
+  }
+
+  /* Tables, as the editor draws them. Borders belong to the cells (not a
+     collapsed table), so a row that appears brings its own borders. */
+  .table {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.875rem;
+  }
+
+  .table th,
+  .table td {
+    padding: 5px 10px;
+    border-right: 1px solid var(--e-divider-strong);
+    border-bottom: 1px solid var(--e-divider-strong);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .table tr:first-child > * {
+    border-top: 1px solid var(--e-divider-strong);
+  }
+
+  .table tr > :first-child {
+    border-left: 1px solid var(--e-divider-strong);
+  }
+
+  .table th {
+    background: var(--e-table-header);
+    font-weight: 500;
+  }
+
+  .table .num {
+    text-align: right;
+  }
+
+
+  /* ---- Scene 1: paste a spreadsheet ---- */
+  .paste-slot {
+    position: relative;
+    min-height: 26px;
+    margin-top: 12px;
+  }
+
+  .scene-paste .caret {
+    position: absolute;
+    top: 3px;
+    left: 0;
+  }
+
+  .scene-paste .table tr {
+    opacity: 0;
+    transform: translateY(6px);
+    transition:
+      opacity 220ms var(--ease-out),
+      transform 220ms var(--ease-out);
+    transition-delay: calc(var(--row) * 60ms);
+  }
+
+  .sheet {
+    position: absolute;
+    top: 112px;
+    right: 28px;
+    width: 300px;
+    overflow: hidden;
+    border-radius: 10px;
+    background: var(--e-popover);
+    box-shadow: var(--e-popover-shadow);
+    font-size: 0.75rem;
+    transition:
+      opacity 300ms var(--ease-out),
+      transform 300ms var(--ease-out);
+  }
+
+  .sheet-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--e-divider);
+    color: var(--e-text-2);
+  }
+
+  .sheet-icon {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: #1e8e3e;
+  }
+
+  .sheet-grid {
+    position: relative;
+    display: grid;
+    grid-template-columns: 24px 1.6fr 1fr 0.8fr;
+  }
+
+  .sheet-grid > span {
+    padding: 4px 6px;
+    border-right: 1px solid var(--e-divider);
+    border-bottom: 1px solid var(--e-divider);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .corner,
+  .col-head,
+  .row-head {
+    background: var(--e-table-header);
+    color: var(--e-text-3);
+    text-align: center;
+  }
+
+  .cell.bold {
+    font-weight: 600;
+  }
+
+  .cell.num {
+    text-align: right;
+  }
+
+  /* Selection over A1:C4, revealed from the first cell like a drag. */
+  .sheet-grid > .sheet-selection {
+    position: absolute;
+    top: calc(100% / 5);
+    left: 24px;
+    right: 0;
+    bottom: 0;
+    padding: 0;
+    border: 2px solid #1a73e8;
+    border-radius: 2px;
+    background: rgba(26, 115, 232, 0.1);
+    clip-path: inset(0 100% 100% 0);
+    transition: clip-path 600ms var(--ease-in-out);
+  }
+
+  .key-copy {
+    top: 72px;
+    right: 40px;
+  }
+
+  .key-paste {
+    top: 112px;
+    left: 52px;
+  }
+
+  .scene-paste:not([data-step='0']) .sheet-selection {
+    clip-path: inset(0 0 0 0);
+  }
+
+  .scene-paste[data-step='2'] .key-copy,
+  .scene-paste[data-step='3'] .key-paste {
+    opacity: 1;
+    transform: none;
+  }
+
+  .scene-paste[data-step='4'] .sheet {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+
+  .scene-paste[data-step='4'] .caret {
+    visibility: hidden;
+  }
+
+  .scene-paste[data-step='4'] .table tr {
+    opacity: 1;
+    transform: none;
+  }
+
+
+  /* ---- Scene 3: move sections with the outline ---- */
+  .outline-visual {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 170px;
+  }
+
+  .sections {
+    display: grid;
+    gap: 6px;
+  }
+
+  .sec {
+    padding: 4px 8px;
+    margin-inline: -8px;
+    border-radius: 6px;
+    transition: background-color 600ms ease;
+  }
+
+  .sec h4 {
+    margin: 0;
+    font-size: 1.125rem;
+    line-height: 1.4;
+    font-weight: 700;
+    color: inherit;
+  }
+
+  .sec p {
+    color: var(--e-text-2);
+  }
+
+  .sec[data-flash] {
+    background: var(--e-selection);
+    transition: none;
+  }
+
+  .outline {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 28px 10px;
+    border-left: 1px solid var(--e-divider);
+    font-size: 0.8125rem;
+  }
+
+  .outline-title {
+    padding: 0 8px 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--e-text-2);
+  }
+
+  .items {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .item {
+    position: relative;
+    padding: 4px 8px 4px 22px;
+    border-radius: 6px;
+    color: var(--e-text-2);
+    white-space: nowrap;
+    background: var(--e-bg);
+    transition:
+      transform 420ms var(--ease-in-out),
+      box-shadow 150ms ease,
+      background-color 150ms ease;
+  }
+
+  .item.root {
+    padding-left: 8px;
+    color: var(--e-text);
+    font-weight: 500;
+  }
+
+  .item[data-lifted] {
+    z-index: 1;
+    background: var(--e-popover);
+    box-shadow: var(--e-popover-shadow);
+    color: var(--e-text);
+  }
+
+  .drop-line {
+    position: absolute;
+    left: 18px;
+    right: 10px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--e-accent);
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  .scene-outline[data-dragging] .drop-line {
+    opacity: 1;
+  }
+
+  /* ---- Scene 4: slash menu ---- */
+  .typing {
+    min-height: 1.5em;
+    margin-top: 10px !important;
+  }
+
+  .scene-slash .callout {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-radius: 4px;
+    background: var(--e-callout);
+    opacity: 0;
+    transform: scale(0.98);
+    transform-origin: top left;
+    transition:
+      opacity 220ms var(--ease-out),
+      transform 220ms var(--ease-out);
+  }
+
+  .scene-slash .callout .caret {
+    visibility: hidden;
+  }
+
+  .menu {
+    position: absolute;
+    top: 132px;
+    left: 36px;
+    width: 280px;
+    padding: 6px 0;
+    border-radius: 10px;
+    background: var(--e-popover);
+    box-shadow: var(--e-popover-shadow);
+    font-size: 0.8125rem;
+    opacity: 0;
+    transform: scale(0.97);
+    transform-origin: top left;
+    transition:
+      opacity 160ms var(--ease-out),
+      transform 160ms var(--ease-out);
+    pointer-events: none;
+  }
+
+  .menu-section {
+    display: block;
+    padding: 4px 12px 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--e-text-2);
+  }
+
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 4px;
+    padding: 4px 8px;
+    border-radius: 6px;
+  }
+
+  .menu-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 34px;
+    height: 34px;
+    border-radius: 5px;
+    background: var(--e-tile);
+    box-shadow: inset 0 0 0 1px var(--e-divider-strong);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--e-text-2);
+  }
+
+  .menu-text {
+    display: grid;
+  }
+
+  .menu-title {
+    color: var(--e-text);
+  }
+
+  .menu-desc {
+    font-size: 0.75rem;
+    color: var(--e-text-2);
+  }
+
+  /* Typing "/" opens the menu; "/cal" filters it down to Callout. */
+  .scene-slash[data-step='1'] .menu,
+  .scene-slash[data-step='2'] .menu {
+    opacity: 1;
+    transform: none;
+  }
+
+  .scene-slash[data-step='2'] .menu-item[data-match='false'] {
+    display: none;
+  }
+
+  .scene-slash[data-step='2'] .menu-item[data-match='true'] {
+    background: var(--e-hover);
+  }
+
+  .scene-slash[data-step='3'] .typing {
+    display: none;
+  }
+
+  .scene-slash[data-step='3'] .callout {
+    opacity: 1;
+    transform: none;
+  }
+
+  .scene-slash[data-step='3']:not([data-done]) .callout .caret {
+    visibility: visible;
+  }
+
+  /* ---- Scene 5: clean diffs ---- */
+  .subtitle {
+    margin: 18px 0 4px;
+    font-size: 1.25rem;
+    line-height: 1.3;
+    font-weight: 700;
+    color: inherit;
+  }
+
+  .todos {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .todos li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-block: 3px;
+  }
+
+  .box {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1.5px var(--e-text-2);
+    transition:
+      background-color 120ms ease,
+      box-shadow 120ms ease;
+  }
+
+  .todos li[data-done] .box,
+  .scene-diff[data-checked] li[data-target] .box {
+    background: var(--e-accent)
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.2 6.8 11 12 5.2' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      center / 14px no-repeat;
+    box-shadow: none;
+  }
+
+  .todos li[data-done] span:last-child,
+  .scene-diff[data-checked] li[data-target] span:last-child {
+    color: var(--e-text-3);
+    text-decoration: line-through;
+  }
+
+  /* Reduced motion: no autoplay; each scene shows its result. */
+
+  /* Small tiles stack the page above its Markdown. */
+  .stack .scene {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    height: auto;
+  }
+
+  .stack .source {
+    border-left: 0;
+    border-top: 1px solid var(--e-divider);
+  }
+
+  .stack .source-bar {
+    height: 36px;
+  }
+
+  .stack .page {
+    padding: 20px 22px;
+  }
+
+  .stack .title {
+    font-size: 1.25rem;
+  }
+
+  .stack .code {
+    font-size: 0.6875rem;
+  }
+
+  .stack .scene-outline .outline-visual {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stack .scene-outline .page {
+    display: none;
+  }
+
+  .stack .scene-outline .outline {
+    padding: 16px 12px;
+    border-left: 0;
+  }
+
+  /* Side by side tiles get windows of the same height. */
+  .stack .pane.visual {
+    height: 200px;
+  }
+
+  .stack .scene-outline .pane.visual {
+    height: auto;
+  }
+
+  .stack .scene-slash .menu {
+    top: 104px;
+    left: 22px;
+    width: min(260px, calc(100% - 44px));
+  }
+
+  /* As tall as the outline tile next to it. */
+  .scene-paste {
+    height: 440px;
+  }
+
+  .scene-paste .sheet {
+    top: 104px;
+    right: 20px;
+    width: min(300px, calc(100% - 40px));
+  }
+
+  /* A tile that starts over fades out, resets, and fades back in. */
+  .scene[data-fading] {
+    opacity: 0;
+  }
+
+  .scene[data-resetting],
+  .scene[data-resetting] * {
+    transition: none !important;
+  }
+
+  /* The scenes below lay themselves out: not the two panes of the scenes above. */
+  .scene-find,
+  .scene-keys,
+  .scene-fold {
+    display: block;
+  }
+
+  .scene-turn {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* ---- Changes ---- */
+  .scene-changes {
+    display: flex;
+    flex-direction: column;
+    height: 296px;
+    position: relative;
+    font-size: 0.875rem;
+  }
+
+  .changes-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 44px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--e-divider);
+    font-size: 0.8125rem;
+    color: var(--e-text-2);
+  }
+
+  .changes-stats {
+    margin-left: auto;
+    font-family: var(--font-code);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .changes-stats .add {
+    color: var(--diff-add-text);
+  }
+
+  .changes-stats .del {
+    color: var(--diff-del-text);
+  }
+
+  /* The Source / Rendered toggle (also Visual / Markdown): a pill that slides under the active label. */
+  .segmented {
+    position: relative;
+    display: inline-grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    padding: 2px;
+    border-radius: 7px;
+    background: var(--e-hover);
+  }
+
+  .seg {
+    position: relative;
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    color: var(--e-text-2);
+    text-align: center;
+    transition: color 200ms ease;
+  }
+
+  .segmented-pill {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: 2px;
+    width: calc(50% - 2px);
+    border-radius: 5px;
+    background: var(--e-bg);
+    box-shadow: 0 0 0 1px var(--e-divider), 0 1px 2px rgba(15, 15, 15, 0.06);
+    transition: transform 300ms var(--ease-in-out);
+  }
+
+  .scene-changes:not([data-step='0']):not([data-step='1']):not([data-step='2']) .segmented-pill,
+  .scene-switch[data-view='markdown'] .segmented-pill {
+    transform: translateX(100%);
+  }
+
+  .scene-changes .seg-source,
+  .scene-changes[data-step='3'] .seg-rendered,
+  .scene-changes[data-step='4'] .seg-rendered,
+  .scene-switch[data-view='visual'] .seg-source,
+  .scene-switch[data-view='markdown'] .seg-rendered {
+    color: var(--e-text);
+  }
+
+  .scene-changes[data-step='3'] .seg-source,
+  .scene-changes[data-step='4'] .seg-source {
+    color: var(--e-text-2);
+  }
+
+  .changes-body {
+    position: relative;
+    flex: 1;
+    display: grid;
+    overflow: hidden;
+  }
+
+  .sdiff,
+  .rdiff {
+    grid-area: 1 / 1;
+    transition:
+      opacity 260ms var(--ease-out),
+      filter 260ms var(--ease-out);
+  }
+
+  .sdiff {
+    padding: 8px 0;
+    font-family: var(--font-code);
+    font-size: 0.75rem;
+    line-height: 22px;
+  }
+
+  .sdiff-row {
+    display: grid;
+    grid-template-columns: 36px 36px 22px minmax(0, 1fr);
+    white-space: pre;
+  }
+
+  .sdiff-row > span:nth-child(-n + 2) {
+    padding-right: 8px;
+    color: var(--e-text-3);
+    text-align: right;
+  }
+
+  .sdiff-row > span:nth-child(3) {
+    color: var(--e-text-2);
+    text-align: center;
+  }
+
+  .sdiff-row.is-hunk {
+    background: var(--diff-hunk-bg, rgba(56, 139, 253, 0.1));
+    color: var(--e-text-2);
+  }
+
+  .sdiff-row.is-add {
+    background: var(--diff-add-bg);
+  }
+
+  .sdiff-row.is-del {
+    background: var(--diff-del-bg);
+  }
+
+  /* Changed lines arrive one after the other, then their changed words light up. */
+  .scene-changes .sdiff-row.is-add,
+  .scene-changes .sdiff-row.is-del {
+    opacity: 0;
+    transform: translateX(-6px);
+    transition:
+      opacity 260ms var(--ease-out),
+      transform 260ms var(--ease-out);
+    transition-delay: calc(var(--i) * 70ms);
+  }
+
+  .scene-changes:not([data-step='0']) .sdiff-row {
+    opacity: 1;
+    transform: none;
+  }
+
+  .w {
+    border-radius: 2px;
+    transition: background-color 300ms ease;
+  }
+
+  .scene-changes:not([data-step='0']):not([data-step='1']) .is-add .w {
+    background: rgba(46, 160, 67, 0.32);
+  }
+
+  .scene-changes:not([data-step='0']):not([data-step='1']) .is-del .w {
+    background: rgba(248, 81, 73, 0.32);
+  }
+
+  .rdiff {
+    padding: 16px 32px;
+    opacity: 0;
+    filter: blur(3px);
+  }
+
+  .scene-changes[data-step='4'] .sdiff {
+    opacity: 0;
+    filter: blur(3px);
+  }
+
+  .scene-changes[data-step='4'] .rdiff {
+    opacity: 1;
+    filter: none;
+  }
+
+  .r-title {
+    margin: 0 0 6px;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: inherit;
+  }
+
+  .r-sub {
+    margin: 10px 0 4px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: inherit;
+  }
+
+  .rdiff p,
+  .switch-visual p {
+    margin: 0;
+    padding: 2px 0;
+  }
+
+  /* Rendered rows run across the whole window, like a line of a diff. */
+  .r-row {
+    position: relative;
+    margin-inline: -32px !important;
+    padding-inline: 32px !important;
+  }
+
+  .r-row::before {
+    position: absolute;
+    left: 12px;
+    font-family: var(--font-code);
+    color: var(--e-text-2);
+  }
+
+  .r-row.is-add {
+    background: var(--diff-add-bg);
+  }
+
+  .r-row.is-add::before {
+    content: '+';
+  }
+
+  .r-row.is-del {
+    background: var(--diff-del-bg);
+  }
+
+  .r-row.is-del::before {
+    content: '−';
+  }
+
+  .scene-changes .r-row {
+    opacity: 0;
+    transition: opacity 260ms var(--ease-out);
+    transition-delay: calc(120ms + var(--i) * 90ms);
+  }
+
+  .scene-changes[data-step='4'] .r-row {
+    opacity: 1;
+  }
+
+  .r-todo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .box.is-on {
+    background: var(--e-accent)
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.2 6.8 11 12 5.2' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      center / 14px no-repeat;
+    box-shadow: none;
+  }
+
+  /* ---- Find and replace ---- */
+  .scene-find {
+    position: relative;
+    height: 232px;
+    font-size: 0.875rem;
+  }
+
+  .findbar,
+  .replacebar {
+    position: absolute;
+    right: 12px;
+    left: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .findbar {
+    top: 12px;
+  }
+
+  .replacebar {
+    top: 48px;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition:
+      opacity 200ms var(--ease-out),
+      transform 200ms var(--ease-out);
+  }
+
+  .scene-find:not([data-step='0']):not([data-step='1']) .replacebar {
+    opacity: 1;
+    transform: none;
+  }
+
+  .find-field {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 5px;
+    box-shadow: inset 0 0 0 1px var(--e-divider-strong);
+    font-size: 0.8125rem;
+  }
+
+  .find-count {
+    flex: none;
+    width: 88px;
+    font-size: 0.75rem;
+    color: var(--e-text-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .find-button {
+    flex: none;
+    width: 88px;
+    white-space: nowrap;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: var(--e-text-2);
+    text-align: center;
+    transition:
+      background-color 150ms ease,
+      transform 160ms var(--ease-out);
+  }
+
+  .scene-find[data-press] .find-button {
+    background: var(--e-hover);
+    color: var(--e-text);
+    transform: scale(0.97);
+  }
+
+  .find-page {
+    padding: 100px 20px 0;
+  }
+
+  .find-page p {
+    margin: 0;
+    padding: 3px 0;
+  }
+
+  /* The replacement sits on the match until it takes its place, so the line never has a gap. */
+  .hit {
+    position: relative;
+    display: inline-block;
+    padding: 0 1px;
+    border-radius: 2px;
+    background: transparent;
+    color: inherit;
+    transition: background-color 200ms ease;
+  }
+
+  .hit > span {
+    transition:
+      opacity 220ms var(--ease-out),
+      filter 220ms var(--ease-out);
+  }
+
+  .hit .new,
+  .scene-find[data-step='3'] .hit .old {
+    position: absolute;
+    top: 0;
+    left: 1px;
+  }
+
+  .scene-find[data-step='3'] .hit .new {
+    position: static;
+  }
+
+  .hit .new {
+    opacity: 0;
+    filter: blur(2px);
+  }
+
+  .scene-find:not([data-step='0']) .hit {
+    background: rgba(255, 212, 0, 0.35);
+  }
+
+  .scene-find[data-step='1'] .hit:first-of-type,
+  .scene-find[data-step='2'] .hit:first-of-type {
+    background: rgba(255, 150, 0, 0.5);
+  }
+
+  .scene-find[data-step='3'] .hit {
+    background: rgba(46, 160, 67, 0.22);
+  }
+
+  .scene-find[data-step='3'] .hit .old {
+    opacity: 0;
+    filter: blur(2px);
+  }
+
+  .scene-find[data-step='3'] .hit .new {
+    opacity: 1;
+    filter: none;
+  }
+
+  .scene-find .findbar .caret {
+    margin-left: 0;
+  }
+
+  .scene-find:not([data-step='0']) .findbar .caret {
+    visibility: hidden;
+  }
+
+  /* ---- Turn into ---- */
+  .scene-turn {
+    position: relative;
+    display: grid;
+    grid-template-rows: 1fr auto;
+    height: 232px;
+  }
+
+  .turn-page {
+    display: grid;
+    align-items: center;
+    padding: 20px 22px;
+  }
+
+  .morph {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 6px;
+    margin-inline: -6px;
+    border-radius: 6px;
+    transition:
+      background-color 220ms ease,
+      padding 220ms var(--ease-out);
+  }
+
+  .morph-text {
+    transition: font-size 220ms var(--ease-out);
+  }
+
+  .morph-icon {
+    display: grid;
+    width: 0;
+    overflow: hidden;
+    transition: width 220ms var(--ease-out);
+  }
+
+  .morph-icon > * {
+    grid-area: 1 / 1;
+    place-self: center;
+    opacity: 0;
+    transition: opacity 180ms ease;
+  }
+
+  .morph-icon .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--e-text);
+  }
+
+  .scene-turn:is([data-kind='todo'], [data-kind='bullet'], [data-kind='callout']) .morph-icon {
+    width: 18px;
+  }
+
+  .scene-turn[data-kind='todo'] .box,
+  .scene-turn[data-kind='bullet'] .dot,
+  .scene-turn[data-kind='callout'] .bulb {
+    opacity: 1;
+  }
+
+  .scene-turn[data-kind='code'] .morph {
+    padding: 14px 16px;
+    background: var(--e-code-bg);
+    font-family: var(--font-code);
+    font-size: 0.8125rem;
+  }
+
+  .scene-turn[data-kind='callout'] .morph {
+    padding: 12px 14px;
+    background: var(--e-callout);
+  }
+
+  .scene-turn[data-kind='heading'] .morph-text {
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+
+  .turn-md {
+    border-top: 1px solid var(--e-divider);
+    background: var(--e-code-bg);
+  }
+
+  .turn-code {
+    min-height: 3.75em;
+    margin: 0;
+    padding: 10px 16px;
+    font-family: var(--font-code);
+    font-size: 0.6875rem;
+    line-height: 1.75;
+    color: var(--e-text-2);
+    white-space: pre;
+  }
+
+  .turn-key {
+    top: 14px;
+    right: 14px;
+  }
+
+  .turn-key[data-on] {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* ---- Every shortcut ---- */
+  .scene-keys {
+    position: relative;
+    height: 232px;
+    overflow: hidden;
+  }
+
+  .keys-key {
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+  }
+
+  .scene-keys[data-step='1'] .keys-key {
+    opacity: 1;
+    transform: none;
+  }
+
+  .keys-panel {
+    position: absolute;
+    inset: 14px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 10px;
+    background: var(--e-popover);
+    box-shadow: var(--e-popover-shadow);
+    font-size: 0.8125rem;
+    opacity: 0;
+    transform: scale(0.97);
+    transition:
+      opacity 200ms var(--ease-out),
+      transform 200ms var(--ease-out);
+  }
+
+  .scene-keys:not([data-step='0']):not([data-step='1']) .keys-panel {
+    opacity: 1;
+    transform: none;
+  }
+
+  .keys-search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--e-divider);
+  }
+
+  .keys-placeholder {
+    position: absolute;
+    left: 14px;
+    color: var(--e-text-3);
+  }
+
+  .keys-search .typed:not(:empty) ~ .keys-placeholder {
+    display: none;
+  }
+
+  .keys-list {
+    padding: 4px 0;
+    overflow: hidden;
+  }
+
+  /* Rows that stop matching fold away (0fr), the rest close up. */
+  .keys-row {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition:
+      grid-template-rows 240ms var(--ease-out),
+      opacity 180ms ease;
+  }
+
+  .keys-row-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0 12px;
+  }
+
+  .keys-row-inner > span {
+    padding: 5px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .keys-row kbd {
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--e-hover);
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    color: var(--e-text-2);
+  }
+
+  .scene-keys[data-step='3'] .keys-row[data-match='false'] {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+
+  /* ---- Fold ---- */
+  .scene-fold {
+    position: relative;
+    height: 236px;
+    font-size: 0.875rem;
+  }
+
+  .fold-page {
+    padding: 20px 26px;
+  }
+
+  .fold-title {
+    margin: 0 0 6px;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: inherit;
+  }
+
+  .fold-sec h5 {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0 2px;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: inherit;
+  }
+
+  .fold-sec p {
+    margin: 0;
+    padding: 2px 0;
+    color: var(--e-text-2);
+  }
+
+  .chevron {
+    position: absolute;
+    left: -18px;
+    width: 14px;
+    height: 14px;
+    opacity: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M6 4l4 4-4 4' fill='none' stroke='%23888' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      center / 12px no-repeat;
+    transform: rotate(90deg);
+    transition:
+      opacity 150ms ease,
+      transform 200ms var(--ease-out);
+  }
+
+  .scene-fold[data-hover] [data-target] .chevron {
+    opacity: 1;
+  }
+
+  .scene-fold[data-folded] [data-target] .chevron {
+    transform: none;
+  }
+
+  .fold-body {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition:
+      grid-template-rows 300ms var(--ease-out),
+      opacity 200ms ease;
+  }
+
+  .fold-body > div {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .scene-fold[data-folded] .fold-body {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+
+  .fold-pill {
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: var(--e-hover);
+    font-size: 0.6875rem;
+    font-weight: 400;
+    color: var(--e-text-2);
+    opacity: 0;
+    transform: scale(0.95);
+    transition:
+      opacity 180ms var(--ease-out),
+      transform 180ms var(--ease-out);
+  }
+
+  .scene-fold[data-folded] .fold-pill {
+    opacity: 1;
+    transform: none;
+  }
+
+  .fold-key {
+    top: 14px;
+    right: 14px;
+  }
+
+  .scene-fold[data-key] .fold-key {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* ---- Visual / Markdown ---- */
+  .scene-switch {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 236px;
+    font-size: 0.875rem;
+  }
+
+  .switch-bar {
+    display: flex;
+    justify-content: center;
+    padding: 10px;
+    border-bottom: 1px solid var(--e-divider);
+  }
+
+  .switch-body {
+    position: relative;
+    flex: 1;
+    display: grid;
+  }
+
+  .switch-visual,
+  .switch-source {
+    grid-area: 1 / 1;
+    transition:
+      opacity 240ms var(--ease-out),
+      filter 240ms var(--ease-out);
+  }
+
+  .switch-visual {
+    padding: 16px 26px;
+  }
+
+  .switch-callout {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    background: var(--e-callout);
+  }
+
+  .switch-source {
+    margin: 0;
+    padding: 16px 20px;
+    background: var(--e-code-bg);
+    font-family: var(--font-code);
+    font-size: 0.75rem;
+    line-height: 1.75;
+    white-space: pre;
+    opacity: 0;
+    filter: blur(3px);
+  }
+
+  .switch-source :global(.m) {
+    color: var(--e-text-3);
+  }
+
+  .scene-switch[data-view='markdown'] .switch-visual {
+    opacity: 0;
+    filter: blur(3px);
+  }
+
+  .scene-switch[data-view='markdown'] .switch-source {
+    opacity: 1;
+    filter: none;
+  }
+
+  .switch-key {
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .scene-switch[data-key] .switch-key {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* A key that is pressed dips, like a real one. */
+  .key[data-press],
+  .scene-keys[data-press] .keys-key {
+    transform: scale(0.94) !important;
+  }
+
+  /* ---- Smaller screens ---- */
+  @media (max-width: 960px) {
+    .bento {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .tile,
+    .tile-half {
+      grid-column: span 1;
+    }
+
+    .tile-wide,
+    .tile-full {
+      grid-column: span 2;
+    }
+
+    .tile-full {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 20px;
+      padding: 24px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .bento {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .tile,
+    .tile-half,
+    .tile-wide,
+    .tile-full {
+      grid-column: span 1;
+    }
+
+    .tile {
+      padding: 18px;
+    }
+
+    .scene-paste {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: 300px 210px;
+      height: auto;
+    }
+
+    .scene-paste .source {
+      border-left: 0;
+      border-top: 1px solid var(--e-divider);
+    }
+
+    .scene-paste .page {
+      padding: 18px;
+    }
+
+    .scene-paste .sheet {
+      top: auto;
+      bottom: 12px;
+      right: 12px;
+      left: 12px;
+      width: auto;
+    }
+
+    .key-copy {
+      top: 92px;
+      right: 18px;
+    }
+
+    .key-paste {
+      top: 92px;
+      left: 34px;
+    }
+
+    .sdiff-row {
+      grid-template-columns: 26px 26px 18px minmax(0, 1fr);
+    }
+
+    .rdiff {
+      padding-inline: 22px;
+    }
+
+    .r-row {
+      margin-inline: -22px !important;
+      padding-inline: 22px !important;
+    }
+
+    .r-row::before {
+      left: 6px;
+    }
+  }
+
+  /* Reduced motion: no autoplay; every tile shows its result, nothing moves. */
+  @media (prefers-reduced-motion: reduce) {
+    .bento[data-animate] .tile {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+
+    .scene,
+    .scene * {
+      transition: none !important;
+      animation: none !important;
+    }
+  }
+</style>
+
+<script>
+  type At = (ms: number, run: () => void) => void;
+
+  type Scene = {
+    /** Schedules the scene from its first frame; the player tracks the timers. */
+    play: (at: At) => void;
+    /** Back to the first frame. */
+    reset: () => void;
+    /** The last frame, without motion (reduced motion). */
+    finish: () => void;
+  };
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)';
+
+  /** Boolean data attribute: `flag(el, 'done', true)` → `data-done`. */
+  function flag(el: HTMLElement, name: string, on: boolean): void {
+    el.toggleAttribute(`data-${name}`, on);
+  }
+
+  /** Types the element's `data-text` one character at a time; returns when it is done. */
+  function typeInto(at: At, el: HTMLElement, start: number, step: number, onType?: (text: string) => void): number {
+    const text = el.dataset.text ?? '';
+    for (let i = 1; i <= text.length; i += 1) {
+      at(start + i * step, () => {
+        el.textContent = text.slice(0, i);
+        onType?.(text.slice(0, i));
+      });
+    }
+    return start + text.length * step;
+  }
+
+  /** Animates elements from where they were to where a DOM change put them (FLIP). */
+  function flip(elements: HTMLElement[], change: () => void): void {
+    const before = new Map(elements.map((el) => [el, el.getBoundingClientRect()]));
+    change();
+    for (const el of elements) {
+      const was = before.get(el)!;
+      const now = el.getBoundingClientRect();
+      const dx = was.left - now.left;
+      const dy = was.top - now.top;
+      if (!dx && !dy) continue;
+      el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 420, easing: EASE_IN_OUT });
+    }
+  }
+
+  /** The Markdown pane of a scene: lines appear, change and get VS Code's gutter marks. */
+  function sourceOf(scene: HTMLElement) {
+    const code = scene.querySelector<HTMLElement>('.code')!;
+    const lines = (id: string) => [...code.querySelectorAll<HTMLElement>(`.line[data-id="${id}"]`)];
+    const initial = new Map([...code.querySelectorAll<HTMLElement>('.line')].map((l) => [l, { html: l.innerHTML, hidden: l.hidden }]));
+    const flash = (line: HTMLElement) => {
+      line.dataset.flash = '';
+      requestAnimationFrame(() => requestAnimationFrame(() => delete line.dataset.flash));
+    };
+    return {
+      code,
+      /** Shows hidden lines, one after the other, marked as added. */
+      add(id: string) {
+        lines(id).forEach((line, i) => {
+          line.hidden = false;
+          line.style.setProperty('--i', String(i));
+          line.dataset.new = '';
+          line.dataset.mark = 'added';
+        });
+      },
+      /** Replaces the content of lines (HTML highlighted on the server), marked as modified. */
+      change(id: string, html: (line: HTMLElement) => string) {
+        for (const line of lines(id)) {
+          line.innerHTML = html(line);
+          line.dataset.mark = 'modified';
+          flash(line);
+        }
+      },
+      mark(line: HTMLElement) {
+        line.dataset.mark = 'modified';
+        flash(line);
+      },
+      reset() {
+        for (const [line, state] of initial) {
+          line.innerHTML = state.html;
+          line.hidden = state.hidden;
+          delete line.dataset.mark;
+          delete line.dataset.new;
+          delete line.dataset.flash;
+        }
+      },
+    };
+  }
+
+  /** The scene's pointer: moves to an element (relative to its pane) and presses. */
+  function pointerOf(scene: HTMLElement) {
+    const pointer = scene.querySelector<HTMLElement>('.pointer')!;
+    const pane = pointer.parentElement!;
+    return {
+      to(el: Element, dx = 0, dy = 0) {
+        const box = pane.getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        pointer.style.setProperty('--x', `${r.left - box.left + Math.min(r.width / 2, 34) + dx}px`);
+        pointer.style.setProperty('--y', `${r.top - box.top + r.height / 2 - 4 + dy}px`);
+        flag(scene, 'pointer', true);
+      },
+      press: (on: boolean) => flag(scene, 'press', on),
+      /** Fades out where it is (moving it while it fades would look like a glitch). */
+      hide() {
+        flag(scene, 'pointer', false);
+        flag(scene, 'press', false);
+      },
+      reset() {
+        pointer.style.removeProperty('--x');
+        pointer.style.removeProperty('--y');
+        flag(scene, 'pointer', false);
+        flag(scene, 'press', false);
+      },
+    };
+  }
+
+
+  function pasteScene(root: HTMLElement): Scene {
+    const source = sourceOf(root);
+    const set = (step: number) => (root.dataset.step = String(step));
+    return {
+      play(at) {
+        at(700, () => set(1)); // select A1:C4
+        at(1600, () => set(2)); // ⌘C
+        at(2500, () => set(3)); // ⌘V at the caret
+        at(3100, () => {
+          set(4); // the table arrives, and lands in the file
+          source.add('pasted');
+        });
+        at(3700, () => flag(root, 'done', true));
+      },
+      reset() {
+        set(0);
+        source.reset();
+        flag(root, 'done', false);
+      },
+      finish() {
+        set(4);
+        source.add('pasted');
+        flag(root, 'done', true);
+      },
+    };
+  }
+
+
+  function outlineScene(root: HTMLElement): Scene {
+    const items = root.querySelector<HTMLElement>('.items')!;
+    const sections = root.querySelector<HTMLElement>('.sections')!;
+    const dropLine = root.querySelector<HTMLElement>('.drop-line')!;
+    const pointer = pointerOf(root);
+    const source = sourceOf(root);
+    const item = (key: string) => items.querySelector<HTMLElement>(`[data-key="${key}"]`)!;
+    const section = (key: string) => sections.querySelector<HTMLElement>(`[data-key="${key}"]`)!;
+    const block = (key: string) => source.code.querySelector<HTMLElement>(`.block[data-key="${key}"]`)!;
+    const originalItems = [...items.children];
+    const originalSections = [...sections.children];
+    const originalCode = [...source.code.children];
+
+    const reorder = () => {
+      items.insertBefore(item('security'), item('components'));
+      sections.insertBefore(section('security'), section('components'));
+      source.code.insertBefore(block('security'), block('components'));
+    };
+
+    const restore = () => {
+      originalItems.forEach((el) => items.appendChild(el));
+      originalSections.forEach((el) => sections.appendChild(el));
+      originalCode.forEach((el) => source.code.appendChild(el));
+    };
+
+    const markMoved = () => {
+      for (const line of block('security').querySelectorAll<HTMLElement>('.line')) source.mark(line);
+    };
+
+    return {
+      play(at) {
+        const security = item('security');
+        const components = item('components');
+        at(500, () => pointer.to(security));
+        at(1400, () => {
+          pointer.press(true);
+          security.dataset.lifted = '';
+        });
+        at(1700, () => {
+          // The dragged item rises; the one it passes moves down to make room.
+          const lift = components.getBoundingClientRect().top - security.getBoundingClientRect().top;
+          dropLine.style.top = `${components.offsetTop + items.offsetTop - 2}px`;
+          security.style.transform = `translateY(${lift}px)`;
+          components.style.transform = `translateY(${security.offsetHeight + 2}px)`;
+          pointer.to(security, 0, lift);
+          flag(root, 'dragging', true);
+        });
+        at(2600, () => {
+          // Drop: both items already show their final place, so swap them in the
+          // DOM without motion; the page sections and the file's lines slide.
+          for (const el of [security, components]) {
+            el.style.transition = 'none';
+            el.style.transform = '';
+          }
+          const codeBlocks = [...source.code.querySelectorAll<HTMLElement>('.block')];
+          flip([...(sections.children as HTMLCollectionOf<HTMLElement>), ...codeBlocks], reorder);
+          security.getBoundingClientRect();
+          security.style.transition = '';
+          components.style.transition = '';
+          delete security.dataset.lifted;
+          section('security').dataset.flash = '';
+          markMoved();
+          flag(root, 'dragging', false);
+          pointer.press(false);
+        });
+        at(2700, () => delete section('security').dataset.flash);
+        at(3200, () => pointer.hide());
+        at(3300, () => flag(root, 'done', true));
+      },
+      reset() {
+        for (const key of ['security', 'components']) item(key).style.transform = '';
+        delete item('security').dataset.lifted;
+        restore();
+        source.reset();
+        pointer.reset();
+        flag(root, 'dragging', false);
+        flag(root, 'done', false);
+      },
+      finish() {
+        restore();
+        reorder();
+        markMoved();
+        flag(root, 'done', true);
+      },
+    };
+  }
+
+  function slashScene(root: HTMLElement): Scene {
+    const [command, callout] = root.querySelectorAll<HTMLElement>('.typed');
+    const source = sourceOf(root);
+    const tipText = source.code.querySelector<HTMLElement>('[data-id="tip-text"]')!;
+    const set = (step: number) => (root.dataset.step = String(step));
+    /** The callout text as it is typed, mirrored in the file. */
+    const mirror = (text: string) => {
+      tipText.innerHTML = `<span class="m">&gt;</span> ${text.replace(/&/g, '&amp;').replace(/</g, '&lt;')}`;
+    };
+    const showAlert = () => ['gap', 'tip', 'tip-text'].forEach((id) => source.add(id));
+    return {
+      play(at) {
+        at(600, () => {
+          command.textContent = '/';
+          set(1);
+        });
+        const typed = typeInto(at, command, 900, 200); // "/cal"
+        at(typed - 200, () => set(2));
+        at(typed + 600, () => {
+          set(3); // Enter: the callout, and its alert in the file
+          showAlert();
+        });
+        const done = typeInto(at, callout, typed + 900, 40, mirror);
+        at(done + 400, () => flag(root, 'done', true));
+      },
+      reset() {
+        command.textContent = '';
+        callout.textContent = '';
+        source.reset();
+        set(0);
+        flag(root, 'done', false);
+      },
+      finish() {
+        callout.textContent = callout.dataset.text ?? '';
+        set(3);
+        showAlert();
+        mirror(callout.dataset.text ?? '');
+        flag(root, 'done', true);
+      },
+    };
+  }
+
+  function diffScene(root: HTMLElement): Scene {
+    const target = root.querySelector<HTMLElement>('[data-target] .box')!;
+    const pointer = pointerOf(root);
+    const source = sourceOf(root);
+    const check = () => {
+      flag(root, 'checked', true);
+      source.change('todo', (line) => line.dataset.checked!);
+    };
+    return {
+      play(at) {
+        at(500, () => pointer.to(target, -2, 2));
+        at(1300, () => pointer.press(true));
+        at(1450, () => {
+          pointer.press(false);
+          check();
+        });
+        at(2000, () => pointer.hide());
+        at(2100, () => flag(root, 'done', true));
+      },
+      reset() {
+        pointer.reset();
+        source.reset();
+        flag(root, 'checked', false);
+        flag(root, 'done', false);
+      },
+      finish() {
+        check();
+        flag(root, 'done', true);
+      },
+    };
+  }
+
+
+  function changesScene(root: HTMLElement): Scene {
+    const pointer = pointerOf(root);
+    const set = (step: number) => (root.dataset.step = String(step));
+    const rendered = root.querySelector<HTMLElement>('.seg-rendered')!;
+    return {
+      play(at) {
+        at(500, () => set(1)); // the changed lines arrive
+        at(1500, () => set(2)); // their changed words light up
+        at(3000, () => pointer.to(rendered));
+        at(3800, () => {
+          pointer.press(true);
+          set(3);
+        });
+        at(3950, () => {
+          pointer.press(false);
+          set(4); // Rendered: the same change, on the page
+        });
+        at(4600, () => pointer.hide());
+      },
+      reset() {
+        set(0);
+        pointer.reset();
+      },
+      finish() {
+        set(2);
+      },
+    };
+  }
+
+  function findScene(root: HTMLElement): Scene {
+    const [query, replacement] = root.querySelectorAll<HTMLElement>('.typed');
+    const count = root.querySelector<HTMLElement>('.find-count')!;
+    const set = (step: number) => (root.dataset.step = String(step));
+    return {
+      play(at) {
+        const typed = typeInto(at, query, 400, 170);
+        at(typed + 150, () => {
+          set(1);
+          count.textContent = '1 of 3';
+        });
+        at(typed + 1000, () => set(2)); // the replace row opens
+        const done = typeInto(at, replacement, typed + 1300, 110);
+        at(done + 500, () => flag(root, 'press', true));
+        at(done + 650, () => {
+          flag(root, 'press', false);
+          set(3);
+          count.textContent = '3 replaced';
+        });
+      },
+      reset() {
+        query.textContent = '';
+        replacement.textContent = '';
+        count.textContent = '';
+        flag(root, 'press', false);
+        set(0);
+      },
+      finish() {
+        query.textContent = query.dataset.text ?? '';
+        replacement.textContent = replacement.dataset.text ?? '';
+        count.textContent = '3 replaced';
+        set(3);
+      },
+    };
+  }
+
+  function turnScene(root: HTMLElement): Scene {
+    const keys = [...root.querySelectorAll<HTMLElement>('.turn-key')];
+    const code = root.querySelector<HTMLElement>('.turn-code')!;
+    const show = (key: HTMLElement | null) => {
+      keys.forEach((k) => flag(k, 'on', k === key));
+      root.dataset.kind = key?.dataset.kind ?? 'text';
+      code.textContent = key?.dataset.md ?? 'Ship the release';
+    };
+    return {
+      play(at) {
+        keys.forEach((key, i) => {
+          const t = 600 + i * 1300;
+          at(t, () => {
+            flag(key, 'press', true);
+            show(key);
+          });
+          at(t + 160, () => flag(key, 'press', false));
+        });
+        at(600 + keys.length * 1300, () => keys.forEach((k) => flag(k, 'on', false)));
+      },
+      reset() {
+        show(null);
+      },
+      finish() {
+        show(keys[0]);
+        flag(keys[0], 'on', false);
+      },
+    };
+  }
+
+  function keysScene(root: HTMLElement): Scene {
+    const query = root.querySelector<HTMLElement>('.typed')!;
+    const set = (step: number) => (root.dataset.step = String(step));
+    return {
+      play(at) {
+        at(500, () => set(1)); // ⌘⌥K
+        at(800, () => flag(root, 'press', true));
+        at(950, () => {
+          flag(root, 'press', false);
+          set(2); // the panel
+        });
+        const typed = typeInto(at, query, 1600, 160);
+        at(typed + 100, () => set(3)); // only the folding shortcuts are left
+      },
+      reset() {
+        query.textContent = '';
+        flag(root, 'press', false);
+        set(0);
+      },
+      finish() {
+        query.textContent = query.dataset.text ?? '';
+        set(3);
+      },
+    };
+  }
+
+  function foldScene(root: HTMLElement): Scene {
+    const pointer = pointerOf(root);
+    const heading = root.querySelector<HTMLElement>('[data-target] .fold-head')!;
+    const key = root.querySelector<HTMLElement>('.fold-key')!;
+    return {
+      play(at) {
+        at(500, () => {
+          pointer.to(heading, -36, 0);
+          flag(root, 'hover', true);
+        });
+        at(1300, () => pointer.press(true));
+        at(1450, () => {
+          pointer.press(false);
+          flag(root, 'folded', true);
+        });
+        at(2000, () => pointer.hide());
+        at(3200, () => {
+          flag(root, 'key', true);
+          flag(key, 'press', true);
+        });
+        at(3360, () => {
+          flag(key, 'press', false);
+          flag(root, 'folded', false);
+        });
+        at(4200, () => {
+          flag(root, 'key', false);
+          flag(root, 'hover', false);
+        });
+      },
+      reset() {
+        pointer.reset();
+        for (const name of ['hover', 'folded', 'key']) flag(root, name, false);
+      },
+      finish() {
+        flag(root, 'folded', true);
+      },
+    };
+  }
+
+  function switchScene(root: HTMLElement): Scene {
+    const key = root.querySelector<HTMLElement>('.switch-key')!;
+    const press = (at: At, t: number, view: string) => {
+      at(t, () => {
+        flag(root, 'key', true);
+        flag(key, 'press', true);
+        root.dataset.view = view;
+      });
+      at(t + 160, () => flag(key, 'press', false));
+      at(t + 900, () => flag(root, 'key', false));
+    };
+    return {
+      play(at) {
+        press(at, 900, 'markdown');
+        press(at, 3400, 'visual');
+      },
+      reset() {
+        root.dataset.view = 'visual';
+        flag(root, 'key', false);
+      },
+      finish() {
+        root.dataset.view = 'markdown';
+      },
+    };
+  }
+
+  const builders: Record<string, (root: HTMLElement) => Scene> = {
+    changes: changesScene,
+    find: findScene,
+    turn: turnScene,
+    keys: keysScene,
+    paste: pasteScene,
+    outline: outlineScene,
+    slash: slashScene,
+    diff: diffScene,
+    fold: foldScene,
+    switch: switchScene,
+  };
+
+  /** How long a tile rests on its last frame before it starts over. */
+  const HOLD_MS = 2800;
+  /** Tiles that come into view together start a little apart, so they never move in lockstep. */
+  const STAGGER_MS = 350;
+
+  for (const bento of document.querySelectorAll<HTMLElement>('.bento')) {
+    const tiles = [...bento.querySelectorAll<HTMLElement>('.tile')];
+
+    if (!reduceMotion) {
+      // Tiles rise into place once, the first time they come into view.
+      bento.dataset.animate = '';
+      const entrance = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              (entry.target as HTMLElement).dataset.in = '';
+              entrance.unobserve(entry.target);
+            }
+          }
+        },
+        { rootMargin: '0px 0px -80px 0px' },
+      );
+      tiles.forEach((tile) => entrance.observe(tile));
+    }
+
+    let starting = 0;
+    for (const tile of tiles) {
+      const root = tile.querySelector<HTMLElement>('[data-scene], .scene')!;
+      const name = root.dataset.scene ?? root.className.match(/scene-(\w+)/)?.[1] ?? '';
+      const scene = builders[name]?.(root);
+      if (!scene) continue;
+
+      if (reduceMotion) {
+        scene.finish();
+        continue;
+      }
+
+      let timers: number[] = [];
+      let length = 0;
+      const stop = () => {
+        timers.forEach(clearTimeout);
+        timers = [];
+      };
+      /** Plays the scene from its first frame, rests on the last one, then fades out and starts over. */
+      const loop = (delay: number) => {
+        stop();
+        // Back to the first frame at once: transitions (some staggered) are for playing, not for resetting.
+        root.dataset.resetting = '';
+        scene.reset();
+        root.getBoundingClientRect();
+        delete root.dataset.resetting;
+        delete root.dataset.fading;
+        length = 0;
+        scene.play((ms, run) => {
+          length = Math.max(length, ms);
+          timers.push(window.setTimeout(run, delay + ms));
+        });
+        timers.push(window.setTimeout(() => (root.dataset.fading = ''), delay + length + HOLD_MS));
+        timers.push(window.setTimeout(() => loop(0), delay + length + HOLD_MS + 260));
+      };
+
+      // Play only while the tile is on screen; it starts over when it comes back.
+      new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            loop((starting++ % 3) * STAGGER_MS);
+            window.setTimeout(() => (starting = 0), 100);
+          } else {
+            stop();
+          }
+        },
+        { threshold: 0.5 },
+      ).observe(root);
+    }
+  }
+</script>

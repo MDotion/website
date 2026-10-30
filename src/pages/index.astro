@@ -2,8 +2,7 @@
 import Base from '../layouts/Base.astro';
 import Header from '../components/Header.astro';
 import Hero from '../components/Hero.astro';
-import Features from '../components/Features.astro';
-import Showcase from '../components/Showcase.astro';
+import Bento from '../components/Bento.astro';
 import Install from '../components/Install.astro';
 import Faq from '../components/Faq.astro';
 import Footer from '../components/Footer.astro';
@@ -11,13 +10,12 @@ import Footer from '../components/Footer.astro';
 
 <Base
   title="MDotion — Visual Markdown editor for VS Code and Cursor"
-  description="Edit Markdown like a page in VS Code and Cursor: slash menu, drag-and-drop blocks, an outline to reorder sections, tables pasted from Excel or Google Sheets. Files stay plain .md, untouched blocks are saved byte for byte."
+  description="Edit Markdown like a page in VS Code and Cursor: slash menu, drag-and-drop blocks, tables pasted from Excel or Google Sheets, find and replace, and the changes since your last commit. Files stay plain .md, untouched blocks are saved byte for byte."
 >
   <Header />
   <main>
     <Hero />
-    <Showcase />
-    <Features />
+    <Bento />
     <Install />
     <Faq />
   </main>
