@@ -1,7 +1,7 @@
 ---
 import { links } from '../links';
 
-const questions = [
+const questions: { id?: string; q: string; a: string }[] = [
   {
     q: 'Does MDotion change my files?',
     a: 'Only the blocks you edit. Everything else is written back byte for byte, so formatting, spacing and line endings you did not touch stay exactly as they were.',
@@ -27,6 +27,11 @@ const questions = [
     a: 'Only if you say so. The first time you open a Markdown file it asks, and you can change your mind at any time from the command palette.',
   },
   {
+    id: 'ai-plans',
+    q: 'Do plans from Claude Code or Cursor open in MDotion?',
+    a: 'Yes. Plans, specs and notes written with AI are plain Markdown files. Once MDotion is your default editor, the .md links you click in the Claude Code or Cursor chat open straight in it, not in the text editor. Links to a specific line still open the source.',
+  },
+  {
     q: 'Is MDotion affiliated with Notion?',
     a: 'No. MDotion is an independent open-source project. “Notion-style” only describes the editing experience.',
   },
@@ -45,7 +50,7 @@ const questions = [
     <div class="list">
       {
         questions.map((item) => (
-          <details>
+          <details id={item.id}>
             <summary>
               {item.q}
               <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
@@ -163,3 +168,15 @@ const questions = [
     }
   }
 </style>
+
+<script>
+  // A link to a question (#ai-plans) opens it.
+  const openTarget = () => {
+    const target = location.hash ? document.getElementById(location.hash.slice(1)) : null;
+    if (target instanceof HTMLDetailsElement) {
+      target.open = true;
+    }
+  };
+  openTarget();
+  window.addEventListener('hashchange', openTarget);
+</script>
