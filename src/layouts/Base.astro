@@ -36,6 +36,18 @@ const ogImage = new URL(`${base}og.png`, Astro.site);
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
+
+    {
+      // Cloudflare Web Analytics: cookieless page views, only on the published site.
+      import.meta.env.PROD && (
+        <script
+          is:inline
+          type="module"
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon='{"token": "a9d25feb3b6c43ad860906ec5fdcb4a2"}'
+        />
+      )
+    }
   </head>
   <body>
     <slot />
